@@ -17,10 +17,9 @@ Designed for deployment in ap-south-1 (Asia Pacific - Mumbai) region
 to comply with Indian market data residency requirements.
 """
 
-from typing import Dict, List, Optional
+from typing import List
 from aws_cdk import (
     Stack,
-    StackProps,
     CfnOutput,
     RemovalPolicy,
     aws_ec2 as ec2,
@@ -35,7 +34,7 @@ from ..constructs.vpc_construct import OptionsStrategyVPC
 class NetworkingStack(Stack):
     """
     Networking Stack for Options Strategy Lifecycle Platform
-    
+
     This stack creates the foundational networking infrastructure including:
     - VPC with public, private application, and private database subnets
     - Internet Gateway and NAT Gateways for outbound connectivity
@@ -54,11 +53,11 @@ class NetworkingStack(Stack):
         enable_nat_gateway: bool = True,
         enable_dns_hostnames: bool = True,
         enable_dns_support: bool = True,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the Networking Stack
-        
+
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
@@ -71,11 +70,11 @@ class NetworkingStack(Stack):
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_name = env_name
         self.vpc_cidr = vpc_cidr
         self.max_azs = max_azs
-        
+
         # Create the VPC using the reusable construct
         self.vpc_construct = OptionsStrategyVPC(
             self,
@@ -87,19 +86,19 @@ class NetworkingStack(Stack):
             enable_dns_hostnames=enable_dns_hostnames,
             enable_dns_support=enable_dns_support,
         )
-        
+
         # Create VPC Flow Logs for security monitoring
         self._create_vpc_flow_logs()
-        
+
         # Create Parameter Store entries for network resources
         self._create_parameter_store_entries()
-        
+
         # Create CloudFormation outputs
         self._create_stack_outputs()
 
     def _create_vpc_flow_logs(self) -> None:
         """Create VPC Flow Logs for network traffic monitoring"""
-        
+
         # Create IAM role for VPC Flow Logs
         flow_log_role = iam.Role(
             self,
@@ -112,7 +111,7 @@ class NetworkingStack(Stack):
                 )
             ],
         )
-        
+
         # Create CloudWatch Log Group for VPC Flow Logs
         flow_log_group = logs.LogGroup(
             self,
@@ -121,7 +120,7 @@ class NetworkingStack(Stack):
             retention=logs.RetentionDays.ONE_MONTH,
             removal_policy=RemovalPolicy.DESTROY,
         )
-        
+
         # Create VPC Flow Log
         self.vpc_flow_log = ec2.FlowLog(
             self,
@@ -135,7 +134,7 @@ class NetworkingStack(Stack):
 
     def _create_parameter_store_entries(self) -> None:
         """Create Parameter Store entries for network resource references"""
-        
+
         # VPC information
         ssm.StringParameter(
             self,
@@ -144,7 +143,7 @@ class NetworkingStack(Stack):
             string_value=self.vpc.vpc_id,
             description=f"VPC ID for Options Strategy Platform {self.env_name} environment",
         )
-        
+
         ssm.StringParameter(
             self,
             "VPCCidrParameter",
@@ -152,32 +151,38 @@ class NetworkingStack(Stack):
             string_value=self.vpc_cidr,
             description=f"VPC CIDR block for Options Strategy Platform {self.env_name} environment",
         )
-        
+
         # Subnet information
         ssm.StringParameter(
             self,
             "PublicSubnetIdsParameter",
             parameter_name=f"/options-strategy/{self.env_name}/networking/public-subnet-ids",
-            string_value=",".join([subnet.subnet_id for subnet in self.vpc.public_subnets]),
+            string_value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.public_subnets]
+            ),
             description=f"Public subnet IDs for Options Strategy Platform {self.env_name} environment",
         )
-        
+
         ssm.StringParameter(
             self,
-            "PrivateSubnetIdsParameter", 
+            "PrivateSubnetIdsParameter",
             parameter_name=f"/options-strategy/{self.env_name}/networking/private-subnet-ids",
-            string_value=",".join([subnet.subnet_id for subnet in self.vpc.private_subnets]),
+            string_value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.private_subnets]
+            ),
             description=f"Private subnet IDs for Options Strategy Platform {self.env_name} environment",
         )
-        
+
         ssm.StringParameter(
             self,
             "IsolatedSubnetIdsParameter",
-            parameter_name=f"/options-strategy/{self.env_name}/networking/isolated-subnet-ids", 
-            string_value=",".join([subnet.subnet_id for subnet in self.vpc.isolated_subnets]),
+            parameter_name=f"/options-strategy/{self.env_name}/networking/isolated-subnet-ids",
+            string_value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.isolated_subnets]
+            ),
             description=f"Isolated subnet IDs for Options Strategy Platform {self.env_name} environment",
         )
-        
+
         # Availability Zones
         ssm.StringParameter(
             self,
@@ -189,7 +194,7 @@ class NetworkingStack(Stack):
 
     def _create_stack_outputs(self) -> None:
         """Create CloudFormation outputs for cross-stack dependencies"""
-        
+
         CfnOutput(
             self,
             "VPCId",
@@ -197,39 +202,45 @@ class NetworkingStack(Stack):
             description="ID of the Options Strategy Platform VPC",
             export_name=f"OptionsStrategy-{self.env_name}-Networking-VPC-ID",
         )
-        
+
         CfnOutput(
             self,
             "VPCCidr",
             value=self.vpc_cidr,
-            description="CIDR block of the Options Strategy Platform VPC", 
+            description="CIDR block of the Options Strategy Platform VPC",
             export_name=f"OptionsStrategy-{self.env_name}-Networking-VPC-CIDR",
         )
-        
+
         CfnOutput(
             self,
             "PublicSubnetIds",
-            value=",".join([subnet.subnet_id for subnet in self.vpc.public_subnets]),
+            value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.public_subnets]
+            ),
             description="IDs of the public subnets",
             export_name=f"OptionsStrategy-{self.env_name}-Networking-Public-Subnet-IDs",
         )
-        
+
         CfnOutput(
             self,
             "PrivateSubnetIds",
-            value=",".join([subnet.subnet_id for subnet in self.vpc.private_subnets]),
+            value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.private_subnets]
+            ),
             description="IDs of the private subnets",
             export_name=f"OptionsStrategy-{self.env_name}-Networking-Private-Subnet-IDs",
         )
-        
+
         CfnOutput(
             self,
             "IsolatedSubnetIds",
-            value=",".join([subnet.subnet_id for subnet in self.vpc.isolated_subnets]),
+            value=",".join(
+                [subnet.subnet_id for subnet in self.vpc.isolated_subnets]
+            ),
             description="IDs of the isolated subnets",
             export_name=f"OptionsStrategy-{self.env_name}-Networking-Isolated-Subnet-IDs",
         )
-        
+
         CfnOutput(
             self,
             "AvailabilityZones",
@@ -242,22 +253,22 @@ class NetworkingStack(Stack):
     def public_subnets(self) -> List[ec2.ISubnet]:
         """Get public subnets from the VPC"""
         return self.vpc.public_subnets
-    
+
     @property
     def private_subnets(self) -> List[ec2.ISubnet]:
         """Get private subnets from the VPC"""
         return self.vpc.private_subnets
-    
+
     @property
     def isolated_subnets(self) -> List[ec2.ISubnet]:
         """Get isolated subnets from the VPC"""
         return self.vpc.isolated_subnets
-    
+
     @property
     def availability_zones(self) -> List[str]:
         """Get availability zones used by the VPC"""
         return self.vpc.availability_zones
-    
+
     @property
     def vpc(self) -> ec2.Vpc:
         """Get VPC from the construct"""

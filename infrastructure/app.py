@@ -12,17 +12,12 @@ The stack is designed for deployment in ap-south-1 (Asia Pacific - Mumbai) regio
 to comply with Indian market data residency requirements.
 """
 
-import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from aws_cdk import (
-    App,
     Stack,
-    StackProps,
-    Environment,
     CfnOutput,
     Tags,
     RemovalPolicy,
-    aws_ec2 as ec2,
     aws_iam as iam,
     aws_logs as logs,
     aws_ssm as ssm,
@@ -39,7 +34,7 @@ from .stacks.monitoring_stack import MonitoringStack
 class OptionsStrategyPlatformStack(Stack):
     """
     Main CDK Stack for Options Strategy Lifecycle Platform
-    
+
     This stack creates the foundational infrastructure including:
     - Networking infrastructure (delegated to NetworkingStack)
     - Security groups and policies (delegated to SecurityStack)
@@ -54,11 +49,11 @@ class OptionsStrategyPlatformStack(Stack):
         scope: Construct,
         construct_id: str,
         env_config: Any,  # EnvironmentConfig type
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the Options Strategy Platform Stack
-        
+
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
@@ -66,13 +61,13 @@ class OptionsStrategyPlatformStack(Stack):
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_config = env_config
         self.env_name = env_config.env_name
-        
+
         # Apply standard tags to all resources in this stack
         self._apply_standard_tags()
-        
+
         # Create networking infrastructure using modular stack
         self.networking_stack = NetworkingStack(
             self,
@@ -80,12 +75,12 @@ class OptionsStrategyPlatformStack(Stack):
             env_name=self.env_name,
             vpc_cidr=env_config.networking.vpc_cidr,
             max_azs=env_config.networking.max_azs,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Get VPC reference from networking stack
         self.vpc = self.networking_stack.vpc
-        
+
         # Create security infrastructure using modular stack
         self.security_stack = SecurityStack(
             self,
@@ -93,27 +88,27 @@ class OptionsStrategyPlatformStack(Stack):
             vpc=self.vpc,
             env_name=self.env_name,
             enable_strict_nacls=env_config.security.enable_strict_nacls,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Get security groups reference
         self.security_groups = self.security_stack.security_groups
-        
+
         # Create IAM infrastructure using dedicated stack
         self.iam_stack = IAMStack(
             self,
             "IAM",
             env_name=self.env_name,
             enable_enhanced_permissions=env_config.is_production,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Get IAM roles reference
         self.iam_roles = self.iam_stack.all_roles
-        
+
         # Create CloudWatch resources
         self.log_groups = self._create_cloudwatch_resources()
-        
+
         # Create configuration management using dedicated stack
         self.config_stack = ConfigurationStack(
             self,
@@ -121,9 +116,9 @@ class OptionsStrategyPlatformStack(Stack):
             env_config=env_config,
             vpc=self.vpc,
             iam_roles=self.iam_roles,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Create comprehensive monitoring stack
         self.monitoring_stack = MonitoringStack(
             self,
@@ -134,19 +129,19 @@ class OptionsStrategyPlatformStack(Stack):
             enable_detailed_monitoring=env_config.monitoring.enable_detailed_monitoring,
             enable_cost_alerts=env_config.monitoring.enable_cost_alerts,
             log_retention_days=env_config.monitoring.log_retention_days,
-            **kwargs
+            **kwargs,
         )
-        
+
         # Create basic CloudWatch dashboard (legacy - now supplemented by monitoring stack)
         self._create_monitoring_dashboard()
-        
+
         # Output important resource identifiers
         self._create_stack_outputs()
 
     def _apply_standard_tags(self) -> None:
         """Apply standard tags to all resources in this stack"""
         # Tags are now handled through env_config.resource_tags
-        
+
         for key, value in self.env_config.resource_tags.items():
             Tags.of(self).add(key, value)
 
@@ -154,12 +149,12 @@ class OptionsStrategyPlatformStack(Stack):
     def lambda_execution_role(self) -> iam.Role:
         """Get Lambda execution role from IAM stack"""
         return self.iam_stack.lambda_execution_role
-    
+
     @property
     def ecs_execution_role(self) -> iam.Role:
         """Get ECS execution role from IAM stack"""
         return self.iam_stack.ecs_execution_role
-    
+
     @property
     def ecs_task_role(self) -> iam.Role:
         """Get ECS task role from IAM stack"""
@@ -168,12 +163,12 @@ class OptionsStrategyPlatformStack(Stack):
     def _create_cloudwatch_resources(self) -> Dict[str, logs.LogGroup]:
         """
         Create CloudWatch log groups and basic monitoring setup
-        
+
         Returns:
             Dict[str, logs.LogGroup]: Dictionary of created log groups
         """
         log_groups = {}
-        
+
         # Get retention period from environment config
         if self.env_config.monitoring.log_retention_days <= 7:
             retention = logs.RetentionDays.ONE_WEEK
@@ -185,9 +180,13 @@ class OptionsStrategyPlatformStack(Stack):
             retention = logs.RetentionDays.THREE_MONTHS
         else:
             retention = logs.RetentionDays.ONE_YEAR
-        
-        removal_policy = RemovalPolicy.RETAIN if self.env_config.is_production else RemovalPolicy.DESTROY
-        
+
+        removal_policy = (
+            RemovalPolicy.RETAIN
+            if self.env_config.is_production
+            else RemovalPolicy.DESTROY
+        )
+
         # Application Log Group
         log_groups["app"] = logs.LogGroup(
             self,
@@ -196,7 +195,7 @@ class OptionsStrategyPlatformStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # API Gateway Log Group
         log_groups["api"] = logs.LogGroup(
             self,
@@ -205,7 +204,7 @@ class OptionsStrategyPlatformStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Lambda Log Group (will be created automatically, but we set retention)
         log_groups["lambda"] = logs.LogGroup(
             self,
@@ -214,12 +213,12 @@ class OptionsStrategyPlatformStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         return log_groups
 
     def _create_legacy_parameter_store_entries(self) -> None:
         """Create legacy Parameter Store entries for backward compatibility"""
-        
+
         # Legacy parameters for backward compatibility
         # Main configuration is now handled by ConfigurationStack
         parameters = {
@@ -227,7 +226,7 @@ class OptionsStrategyPlatformStack(Stack):
             "ecs-execution-role-arn": self.ecs_execution_role.role_arn,
             "ecs-task-role-arn": self.ecs_task_role.role_arn,
         }
-        
+
         for key, value in parameters.items():
             ssm.StringParameter(
                 self,
@@ -239,13 +238,13 @@ class OptionsStrategyPlatformStack(Stack):
 
     def _create_monitoring_dashboard(self) -> None:
         """Create CloudWatch dashboard for basic monitoring"""
-        
+
         dashboard = cloudwatch.Dashboard(
             self,
             "OptionsStrategyDashboard",
             dashboard_name=f"OptionsStrategy-{self.env_name}",
         )
-        
+
         # Add platform metrics widget
         dashboard.add_widgets(
             cloudwatch.GraphWidget(
@@ -254,7 +253,9 @@ class OptionsStrategyPlatformStack(Stack):
                     cloudwatch.Metric(
                         namespace="AWS/Logs",
                         metric_name="IncomingLogEvents",
-                        dimensions_map={"LogGroupName": f"{self.env_config.get_log_group_prefix()}/application"},
+                        dimensions_map={
+                            "LogGroupName": f"{self.env_config.get_log_group_prefix()}/application"
+                        },
                     )
                 ],
                 width=12,
@@ -264,7 +265,7 @@ class OptionsStrategyPlatformStack(Stack):
 
     def _create_stack_outputs(self) -> None:
         """Create CloudFormation outputs for important resource identifiers"""
-        
+
         # Core infrastructure outputs
         CfnOutput(
             self,
@@ -273,7 +274,7 @@ class OptionsStrategyPlatformStack(Stack):
             description="VPC ID for the platform",
             export_name=f"OptionsStrategy-{self.env_name}-VPC-ID",
         )
-        
+
         CfnOutput(
             self,
             "EnvironmentName",
@@ -281,7 +282,7 @@ class OptionsStrategyPlatformStack(Stack):
             description="Environment name",
             export_name=f"OptionsStrategy-{self.env_name}-Environment",
         )
-        
+
         # Stack references
         CfnOutput(
             self,
@@ -290,7 +291,7 @@ class OptionsStrategyPlatformStack(Stack):
             description="IAM stack name",
             export_name=f"OptionsStrategy-{self.env_name}-IAM-Stack",
         )
-        
+
         CfnOutput(
             self,
             "ConfigStackName",
@@ -298,7 +299,7 @@ class OptionsStrategyPlatformStack(Stack):
             description="Configuration stack name",
             export_name=f"OptionsStrategy-{self.env_name}-Config-Stack",
         )
-        
+
         CfnOutput(
             self,
             "MonitoringStackName",

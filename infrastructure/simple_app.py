@@ -6,13 +6,8 @@ during development and testing. Once the architecture is stable, this can be ref
 back to the modular approach.
 """
 
-import os
-from typing import Dict, Any, Optional
 from aws_cdk import (
-    App,
     Stack,
-    StackProps,
-    Environment,
     CfnOutput,
     Tags,
     RemovalPolicy,
@@ -20,7 +15,6 @@ from aws_cdk import (
     aws_iam as iam,
     aws_logs as logs,
     aws_ssm as ssm,
-    aws_cloudwatch as cloudwatch,
 )
 from constructs import Construct
 
@@ -28,7 +22,7 @@ from constructs import Construct
 class SimpleOptionsStrategyStack(Stack):
     """
     Simplified CDK Stack for Options Strategy Lifecycle Platform
-    
+
     This stack creates the foundational infrastructure in a single stack
     to avoid circular dependency issues during development.
     """
@@ -40,32 +34,32 @@ class SimpleOptionsStrategyStack(Stack):
         env_name: str = "dev",
         vpc_cidr: str = "10.0.0.0/16",
         max_azs: int = 2,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the Simple Options Strategy Platform Stack
         """
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_name = env_name
         self.vpc_cidr = vpc_cidr
         self.max_azs = max_azs
-        
+
         # Apply standard tags
         self._apply_standard_tags()
-        
+
         # Create VPC
         self._create_vpc()
-        
+
         # Create IAM resources
         self._create_iam_resources()
-        
+
         # Create CloudWatch resources
         self._create_cloudwatch_resources()
-        
+
         # Create Parameter Store entries
         self._create_parameter_store()
-        
+
         # Create outputs
         self._create_outputs()
 
@@ -79,7 +73,7 @@ class SimpleOptionsStrategyStack(Stack):
             "CostCenter": "Trading",
             "Owner": "TradingTeam",
         }
-        
+
         for key, value in tags.items():
             Tags.of(self).add(key, value)
 
@@ -113,7 +107,7 @@ class SimpleOptionsStrategyStack(Stack):
             enable_dns_hostnames=True,
             enable_dns_support=True,
         )
-        
+
         # Create Security Groups
         self.alb_sg = ec2.SecurityGroup(
             self,
@@ -122,7 +116,7 @@ class SimpleOptionsStrategyStack(Stack):
             description="Security group for Application Load Balancer",
             allow_all_outbound=True,
         )
-        
+
         self.app_sg = ec2.SecurityGroup(
             self,
             "ApplicationSecurityGroup",
@@ -130,7 +124,7 @@ class SimpleOptionsStrategyStack(Stack):
             description="Security group for application servers",
             allow_all_outbound=True,
         )
-        
+
         self.db_sg = ec2.SecurityGroup(
             self,
             "DatabaseSecurityGroup",
@@ -138,20 +132,20 @@ class SimpleOptionsStrategyStack(Stack):
             description="Security group for databases",
             allow_all_outbound=False,
         )
-        
+
         # Configure security group rules
         self.alb_sg.add_ingress_rule(
             peer=ec2.Peer.any_ipv4(),
             connection=ec2.Port.tcp(443),
             description="HTTPS from anywhere",
         )
-        
+
         self.app_sg.add_ingress_rule(
             peer=self.alb_sg,
             connection=ec2.Port.tcp(8000),
             description="App port from ALB",
         )
-        
+
         self.db_sg.add_ingress_rule(
             peer=self.app_sg,
             connection=ec2.Port.tcp(5432),
@@ -175,7 +169,7 @@ class SimpleOptionsStrategyStack(Stack):
                 ),
             ],
         )
-        
+
         # ECS task execution role
         self.ecs_execution_role = iam.Role(
             self,
@@ -188,7 +182,7 @@ class SimpleOptionsStrategyStack(Stack):
                 ),
             ],
         )
-        
+
         # ECS task role
         self.ecs_task_role = iam.Role(
             self,
@@ -200,9 +194,17 @@ class SimpleOptionsStrategyStack(Stack):
     def _create_cloudwatch_resources(self) -> None:
         """Create CloudWatch log groups and monitoring"""
         # Determine retention based on environment
-        retention = logs.RetentionDays.ONE_WEEK if self.env_name == "dev" else logs.RetentionDays.ONE_MONTH
-        removal_policy = RemovalPolicy.DESTROY if self.env_name == "dev" else RemovalPolicy.RETAIN
-        
+        retention = (
+            logs.RetentionDays.ONE_WEEK
+            if self.env_name == "dev"
+            else logs.RetentionDays.ONE_MONTH
+        )
+        removal_policy = (
+            RemovalPolicy.DESTROY
+            if self.env_name == "dev"
+            else RemovalPolicy.RETAIN
+        )
+
         # Application logs
         self.app_log_group = logs.LogGroup(
             self,
@@ -211,7 +213,7 @@ class SimpleOptionsStrategyStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Lambda logs
         self.lambda_log_group = logs.LogGroup(
             self,
@@ -220,7 +222,7 @@ class SimpleOptionsStrategyStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # API Gateway logs
         self.api_log_group = logs.LogGroup(
             self,
@@ -235,9 +237,15 @@ class SimpleOptionsStrategyStack(Stack):
         parameters = {
             "vpc-id": self.vpc.vpc_id,
             "vpc-cidr": self.vpc_cidr,
-            "public-subnet-ids": ",".join([subnet.subnet_id for subnet in self.vpc.public_subnets]),
-            "private-subnet-ids": ",".join([subnet.subnet_id for subnet in self.vpc.private_subnets]),
-            "isolated-subnet-ids": ",".join([subnet.subnet_id for subnet in self.vpc.isolated_subnets]),
+            "public-subnet-ids": ",".join(
+                [subnet.subnet_id for subnet in self.vpc.public_subnets]
+            ),
+            "private-subnet-ids": ",".join(
+                [subnet.subnet_id for subnet in self.vpc.private_subnets]
+            ),
+            "isolated-subnet-ids": ",".join(
+                [subnet.subnet_id for subnet in self.vpc.isolated_subnets]
+            ),
             "alb-sg-id": self.alb_sg.security_group_id,
             "app-sg-id": self.app_sg.security_group_id,
             "db-sg-id": self.db_sg.security_group_id,
@@ -245,7 +253,7 @@ class SimpleOptionsStrategyStack(Stack):
             "ecs-execution-role-arn": self.ecs_execution_role.role_arn,
             "ecs-task-role-arn": self.ecs_task_role.role_arn,
         }
-        
+
         for key, value in parameters.items():
             ssm.StringParameter(
                 self,
@@ -261,5 +269,7 @@ class SimpleOptionsStrategyStack(Stack):
         CfnOutput(self, "VPCCidr", value=self.vpc_cidr)
         CfnOutput(self, "Environment", value=self.env_name)
         CfnOutput(self, "LambdaRoleArn", value=self.lambda_role.role_arn)
-        CfnOutput(self, "ECSExecutionRoleArn", value=self.ecs_execution_role.role_arn)
+        CfnOutput(
+            self, "ECSExecutionRoleArn", value=self.ecs_execution_role.role_arn
+        )
         CfnOutput(self, "ECSTaskRoleArn", value=self.ecs_task_role.role_arn)

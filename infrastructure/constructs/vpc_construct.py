@@ -29,14 +29,14 @@ from constructs import Construct
 class OptionsStrategyVPC(Construct):
     """
     Reusable VPC Construct for Options Strategy Lifecycle Platform
-    
+
     This construct creates a well-architected VPC with:
     - Public subnets for load balancers and bastion hosts
     - Private subnets with NAT Gateway access for application services
     - Isolated subnets for databases and sensitive services
     - Proper DNS configuration for service discovery
     - Multi-AZ deployment for high availability
-    
+
     The VPC is designed to support:
     - Web applications and APIs
     - Containerized microservices
@@ -59,7 +59,7 @@ class OptionsStrategyVPC(Construct):
     ) -> None:
         """
         Initialize the VPC Construct
-        
+
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
@@ -72,16 +72,16 @@ class OptionsStrategyVPC(Construct):
             nat_gateways: Number of NAT gateways (defaults to max_azs if None)
         """
         super().__init__(scope, construct_id)
-        
+
         self.env_name = env_name
         self.vpc_cidr = vpc_cidr
         self.max_azs = max_azs
-        
+
         # Determine NAT Gateway configuration based on environment
         if nat_gateways is None:
             # Cost optimization: dev uses single NAT gateway, prod uses one per AZ
             nat_gateways = 1 if env_name == "dev" else max_azs
-        
+
         # Create the VPC with multi-tier subnet architecture
         self.vpc = self._create_vpc(
             vpc_cidr=vpc_cidr,
@@ -91,7 +91,7 @@ class OptionsStrategyVPC(Construct):
             enable_dns_hostnames=enable_dns_hostnames,
             enable_dns_support=enable_dns_support,
         )
-        
+
         # Apply environment-specific tags
         self._apply_vpc_tags()
 
@@ -106,7 +106,7 @@ class OptionsStrategyVPC(Construct):
     ) -> ec2.Vpc:
         """
         Create the VPC with multi-tier subnet configuration
-        
+
         Args:
             vpc_cidr: CIDR block for the VPC
             max_azs: Maximum number of availability zones
@@ -114,11 +114,11 @@ class OptionsStrategyVPC(Construct):
             enable_nat_gateway: Whether to enable NAT gateways
             enable_dns_hostnames: Whether to enable DNS hostnames
             enable_dns_support: Whether to enable DNS support
-            
+
         Returns:
             ec2.Vpc: The created VPC
         """
-        
+
         # Define subnet configuration for three-tier architecture
         subnet_configuration = [
             # Public subnets for load balancers, bastion hosts, NAT gateways
@@ -140,7 +140,7 @@ class OptionsStrategyVPC(Construct):
                 cidr_mask=24,  # /24 is sufficient for database instances
             ),
         ]
-        
+
         # Create the VPC
         vpc = ec2.Vpc(
             self,
@@ -155,12 +155,12 @@ class OptionsStrategyVPC(Construct):
             # Create one internet gateway per VPC
             nat_gateway_provider=ec2.NatProvider.gateway(),
         )
-        
+
         return vpc
 
     def _apply_vpc_tags(self) -> None:
         """Apply environment-specific and compliance tags to the VPC"""
-        
+
         # Standard tags for the VPC
         tags_config = {
             "Name": f"options-strategy-vpc-{self.env_name}",
@@ -174,11 +174,11 @@ class OptionsStrategyVPC(Construct):
             "ManagedBy": "CDK",
             "Region": "ap-south-1",
         }
-        
+
         # Apply tags to the VPC and all its resources
         for key, value in tags_config.items():
             Tags.of(self.vpc).add(key, value)
-        
+
         # Environment-specific tags
         if self.env_name == "prod":
             Tags.of(self.vpc).add("Criticality", "High")
@@ -194,10 +194,10 @@ class OptionsStrategyVPC(Construct):
     def get_subnet_by_type(self, subnet_type: str) -> List[ec2.ISubnet]:
         """
         Get subnets by type
-        
+
         Args:
             subnet_type: Type of subnet ('public', 'private', 'isolated')
-            
+
         Returns:
             List[ec2.ISubnet]: List of subnets of the specified type
         """
@@ -208,15 +208,17 @@ class OptionsStrategyVPC(Construct):
         elif subnet_type.lower() == "isolated":
             return self.vpc.isolated_subnets
         else:
-            raise ValueError(f"Invalid subnet type: {subnet_type}. Use 'public', 'private', or 'isolated'")
+            raise ValueError(
+                f"Invalid subnet type: {subnet_type}. Use 'public', 'private', or 'isolated'"
+            )
 
     def get_subnet_ids_by_type(self, subnet_type: str) -> List[str]:
         """
         Get subnet IDs by type
-        
+
         Args:
             subnet_type: Type of subnet ('public', 'private', 'isolated')
-            
+
         Returns:
             List[str]: List of subnet IDs of the specified type
         """

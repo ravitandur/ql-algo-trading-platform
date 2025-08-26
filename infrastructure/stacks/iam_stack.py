@@ -17,11 +17,9 @@ All roles are environment-scoped and include comprehensive logging permissions
 for CloudWatch integration and security auditing.
 """
 
-import os
-from typing import Dict, List, Optional, Any
+from typing import Dict
 from aws_cdk import (
     Stack,
-    StackProps,
     CfnOutput,
     Tags,
     aws_iam as iam,
@@ -33,11 +31,11 @@ from ..constructs.iam_construct import OptionsStrategyIAMConstruct
 class IAMStack(Stack):
     """
     Dedicated IAM Stack for Options Strategy Lifecycle Platform
-    
+
     This stack manages all IAM resources including roles, policies, and service
     principals required by the platform. It provides a centralized location
     for access control management and follows AWS security best practices.
-    
+
     Features:
     - Environment-specific role naming and scoping
     - Principle of least privilege access policies
@@ -53,11 +51,11 @@ class IAMStack(Stack):
         construct_id: str,
         env_name: str = "dev",
         enable_enhanced_permissions: bool = False,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the IAM Stack
-        
+
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
@@ -66,13 +64,13 @@ class IAMStack(Stack):
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_name = env_name
         self.enable_enhanced_permissions = enable_enhanced_permissions
-        
+
         # Apply standard tags to all resources in this stack
         self._apply_standard_tags()
-        
+
         # Create IAM construct for common role patterns
         self.iam_construct = OptionsStrategyIAMConstruct(
             self,
@@ -80,13 +78,13 @@ class IAMStack(Stack):
             env_name=env_name,
             enable_enhanced_permissions=enable_enhanced_permissions,
         )
-        
+
         # Create service-specific roles
         self.service_roles = self._create_service_roles()
-        
+
         # Create cross-service policies
         self.cross_service_policies = self._create_cross_service_policies()
-        
+
         # Create CloudFormation outputs
         self._create_stack_outputs()
 
@@ -102,19 +100,19 @@ class IAMStack(Stack):
             "Stack": "IAM",
             "Component": "security",
         }
-        
+
         for key, value in tags_config.items():
             Tags.of(self).add(key, value)
 
     def _create_service_roles(self) -> Dict[str, iam.Role]:
         """
         Create service-specific IAM roles beyond the common patterns
-        
+
         Returns:
             Dict[str, iam.Role]: Dictionary of service-specific IAM roles
         """
         roles = {}
-        
+
         # API Gateway Execution Role
         roles["api_gateway"] = iam.Role(
             self,
@@ -127,7 +125,7 @@ class IAMStack(Stack):
                 )
             ],
         )
-        
+
         # Add custom API Gateway policy
         api_gateway_policy = iam.Policy(
             self,
@@ -146,7 +144,7 @@ class IAMStack(Stack):
             ],
         )
         roles["api_gateway"].attach_inline_policy(api_gateway_policy)
-        
+
         # EventBridge Role for event-driven architecture
         roles["eventbridge"] = iam.Role(
             self,
@@ -154,7 +152,7 @@ class IAMStack(Stack):
             role_name=f"options-strategy-eventbridge-role-{self.env_name}",
             assumed_by=iam.ServicePrincipal("events.amazonaws.com"),
         )
-        
+
         # Add EventBridge policy for cross-service integration
         eventbridge_policy = iam.Policy(
             self,
@@ -177,7 +175,7 @@ class IAMStack(Stack):
             ],
         )
         roles["eventbridge"].attach_inline_policy(eventbridge_policy)
-        
+
         # Database Access Role for applications
         roles["database_access"] = iam.Role(
             self,
@@ -185,10 +183,10 @@ class IAMStack(Stack):
             role_name=f"options-strategy-db-access-role-{self.env_name}",
             assumed_by=iam.CompositePrincipal(
                 iam.ServicePrincipal("lambda.amazonaws.com"),
-                iam.ServicePrincipal("ecs-tasks.amazonaws.com")
+                iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
             ),
         )
-        
+
         # Add database access policy
         db_policy_statements = [
             iam.PolicyStatement(
@@ -208,7 +206,7 @@ class IAMStack(Stack):
                 ],
             ),
         ]
-        
+
         # Add RDS permissions for production environments
         if self.enable_enhanced_permissions or self.env_name == "prod":
             db_policy_statements.append(
@@ -222,7 +220,7 @@ class IAMStack(Stack):
                     ],
                 )
             )
-        
+
         db_access_policy = iam.Policy(
             self,
             "DatabaseAccessPolicy",
@@ -230,18 +228,18 @@ class IAMStack(Stack):
             statements=db_policy_statements,
         )
         roles["database_access"].attach_inline_policy(db_access_policy)
-        
+
         return roles
 
     def _create_cross_service_policies(self) -> Dict[str, iam.Policy]:
         """
         Create policies for cross-service communication
-        
+
         Returns:
             Dict[str, iam.Policy]: Dictionary of cross-service policies
         """
         policies = {}
-        
+
         # Trading Service Communication Policy
         policies["trading_communication"] = iam.Policy(
             self,
@@ -273,7 +271,7 @@ class IAMStack(Stack):
                 ),
             ],
         )
-        
+
         # Monitoring and Alerting Policy
         policies["monitoring"] = iam.Policy(
             self,
@@ -303,7 +301,7 @@ class IAMStack(Stack):
                 ),
             ],
         )
-        
+
         return policies
 
     @property
@@ -331,7 +329,7 @@ class IAMStack(Stack):
 
     def _create_stack_outputs(self) -> None:
         """Create CloudFormation outputs for important IAM resource identifiers"""
-        
+
         # Core service role outputs
         CfnOutput(
             self,
@@ -340,7 +338,7 @@ class IAMStack(Stack):
             description="ARN of Lambda execution role",
             export_name=f"OptionsStrategy-{self.env_name}-Lambda-Role-ARN",
         )
-        
+
         CfnOutput(
             self,
             "ECSExecutionRoleArn",
@@ -348,7 +346,7 @@ class IAMStack(Stack):
             description="ARN of ECS execution role",
             export_name=f"OptionsStrategy-{self.env_name}-ECS-Execution-Role-ARN",
         )
-        
+
         CfnOutput(
             self,
             "ECSTaskRoleArn",
@@ -356,7 +354,7 @@ class IAMStack(Stack):
             description="ARN of ECS task role",
             export_name=f"OptionsStrategy-{self.env_name}-ECS-Task-Role-ARN",
         )
-        
+
         # Service-specific role outputs
         CfnOutput(
             self,
@@ -365,7 +363,7 @@ class IAMStack(Stack):
             description="ARN of API Gateway execution role",
             export_name=f"OptionsStrategy-{self.env_name}-APIGateway-Role-ARN",
         )
-        
+
         CfnOutput(
             self,
             "EventBridgeRoleArn",
@@ -373,7 +371,7 @@ class IAMStack(Stack):
             description="ARN of EventBridge execution role",
             export_name=f"OptionsStrategy-{self.env_name}-EventBridge-Role-ARN",
         )
-        
+
         CfnOutput(
             self,
             "DatabaseAccessRoleArn",

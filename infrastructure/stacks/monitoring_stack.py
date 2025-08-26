@@ -19,10 +19,9 @@ Designed for deployment in ap-south-1 (Asia Pacific - Mumbai) region
 to comply with Indian market data residency requirements.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional
 from aws_cdk import (
     Stack,
-    StackProps,
     CfnOutput,
     RemovalPolicy,
     Duration,
@@ -44,7 +43,7 @@ from constructs import Construct
 class MonitoringStack(Stack):
     """
     Comprehensive Monitoring Stack for Options Strategy Lifecycle Platform
-    
+
     This stack creates operational monitoring infrastructure including:
     - Multi-layered CloudWatch dashboards (Executive, Operations, Technical)
     - Proactive alerting with SNS integration
@@ -66,11 +65,11 @@ class MonitoringStack(Stack):
         enable_detailed_monitoring: bool = True,
         enable_cost_alerts: bool = True,
         log_retention_days: int = 30,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Initialize the Monitoring Stack
-        
+
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
@@ -83,47 +82,49 @@ class MonitoringStack(Stack):
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_name = env_name
         self.vpc = vpc
         self.notification_email = notification_email
         self.enable_detailed_monitoring = enable_detailed_monitoring
         self.enable_cost_alerts = enable_cost_alerts
-        
+
         # Create SNS topics for notifications
         self.notification_topics = self._create_notification_topics()
-        
+
         # Create custom CloudWatch log groups
-        self.monitoring_log_groups = self._create_monitoring_log_groups(log_retention_days)
-        
+        self.monitoring_log_groups = self._create_monitoring_log_groups(
+            log_retention_days
+        )
+
         # Create CloudWatch alarms
         self.alarms = self._create_cloudwatch_alarms()
-        
+
         # Create CloudWatch dashboards
         self.dashboards = self._create_cloudwatch_dashboards()
-        
+
         # Create log insights queries
         self._create_log_insights_queries()
-        
+
         # Create custom metrics and filters
         self._create_custom_metrics()
-        
+
         # Create monitoring Lambda functions
         self.monitoring_functions = self._create_monitoring_functions()
-        
+
         # Create EventBridge rules for automated monitoring
         self._create_monitoring_automation()
-        
+
         # Create Parameter Store entries
         self._create_parameter_store_entries()
-        
+
         # Create CloudFormation outputs
         self._create_stack_outputs()
 
     def _create_notification_topics(self) -> Dict[str, sns.Topic]:
         """Create SNS topics for different types of notifications"""
         topics = {}
-        
+
         # Critical alerts topic (P1 incidents)
         topics["critical"] = sns.Topic(
             self,
@@ -132,7 +133,7 @@ class MonitoringStack(Stack):
             display_name=f"Options Strategy Critical Alerts - {self.env_name.title()}",
             description="Critical alerts requiring immediate attention",
         )
-        
+
         # Warning alerts topic (P2/P3 incidents)
         topics["warning"] = sns.Topic(
             self,
@@ -141,7 +142,7 @@ class MonitoringStack(Stack):
             display_name=f"Options Strategy Warning Alerts - {self.env_name.title()}",
             description="Warning alerts for monitoring and investigation",
         )
-        
+
         # Cost alerts topic
         topics["cost"] = sns.Topic(
             self,
@@ -150,28 +151,32 @@ class MonitoringStack(Stack):
             display_name=f"Options Strategy Cost Alerts - {self.env_name.title()}",
             description="Cost monitoring and budget alerts",
         )
-        
+
         # Security alerts topic
         topics["security"] = sns.Topic(
             self,
-            "SecurityAlertsTopic", 
+            "SecurityAlertsTopic",
             topic_name=f"options-strategy-security-alerts-{self.env_name}",
             display_name=f"Options Strategy Security Alerts - {self.env_name.title()}",
             description="Security monitoring and compliance alerts",
         )
-        
+
         # Add email subscriptions if email provided
         if self.notification_email:
             for topic_name, topic in topics.items():
                 topic.add_subscription(
-                    sns_subscriptions.EmailSubscription(self.notification_email)
+                    sns_subscriptions.EmailSubscription(
+                        self.notification_email
+                    )
                 )
-        
+
         return topics
 
-    def _create_monitoring_log_groups(self, retention_days: int) -> Dict[str, logs.LogGroup]:
+    def _create_monitoring_log_groups(
+        self, retention_days: int
+    ) -> Dict[str, logs.LogGroup]:
         """Create dedicated log groups for monitoring purposes"""
-        
+
         # Map retention days to CDK retention enum
         if retention_days <= 7:
             retention = logs.RetentionDays.ONE_WEEK
@@ -183,11 +188,15 @@ class MonitoringStack(Stack):
             retention = logs.RetentionDays.THREE_MONTHS
         else:
             retention = logs.RetentionDays.ONE_YEAR
-            
-        removal_policy = RemovalPolicy.RETAIN if self.env_name == "prod" else RemovalPolicy.DESTROY
-        
+
+        removal_policy = (
+            RemovalPolicy.RETAIN
+            if self.env_name == "prod"
+            else RemovalPolicy.DESTROY
+        )
+
         log_groups = {}
-        
+
         # Platform monitoring logs
         log_groups["monitoring"] = logs.LogGroup(
             self,
@@ -196,7 +205,7 @@ class MonitoringStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Trading activity logs
         log_groups["trading"] = logs.LogGroup(
             self,
@@ -205,7 +214,7 @@ class MonitoringStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Performance metrics logs
         log_groups["performance"] = logs.LogGroup(
             self,
@@ -214,7 +223,7 @@ class MonitoringStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Error tracking logs
         log_groups["errors"] = logs.LogGroup(
             self,
@@ -223,7 +232,7 @@ class MonitoringStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         # Audit logs for compliance
         log_groups["audit"] = logs.LogGroup(
             self,
@@ -232,13 +241,13 @@ class MonitoringStack(Stack):
             retention=retention,
             removal_policy=removal_policy,
         )
-        
+
         return log_groups
 
     def _create_cloudwatch_alarms(self) -> Dict[str, cloudwatch.Alarm]:
         """Create comprehensive CloudWatch alarms for the platform"""
         alarms = {}
-        
+
         # Lambda function error rate alarm
         alarms["lambda_error_rate"] = cloudwatch.Alarm(
             self,
@@ -252,7 +261,7 @@ class MonitoringStack(Stack):
                     "FunctionName": f"options-strategy-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.SUM,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=10,
             evaluation_periods=2,
@@ -262,7 +271,7 @@ class MonitoringStack(Stack):
         alarms["lambda_error_rate"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["critical"])
         )
-        
+
         # Lambda duration alarm
         alarms["lambda_duration"] = cloudwatch.Alarm(
             self,
@@ -276,7 +285,7 @@ class MonitoringStack(Stack):
                     "FunctionName": f"options-strategy-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.AVERAGE,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=30000,  # 30 seconds
             evaluation_periods=3,
@@ -285,7 +294,7 @@ class MonitoringStack(Stack):
         alarms["lambda_duration"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["warning"])
         )
-        
+
         # API Gateway 4xx error rate
         alarms["api_4xx_errors"] = cloudwatch.Alarm(
             self,
@@ -299,7 +308,7 @@ class MonitoringStack(Stack):
                     "ApiName": f"options-strategy-api-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.SUM,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=50,
             evaluation_periods=2,
@@ -308,7 +317,7 @@ class MonitoringStack(Stack):
         alarms["api_4xx_errors"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["warning"])
         )
-        
+
         # API Gateway 5xx error rate
         alarms["api_5xx_errors"] = cloudwatch.Alarm(
             self,
@@ -322,7 +331,7 @@ class MonitoringStack(Stack):
                     "ApiName": f"options-strategy-api-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.SUM,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=10,
             evaluation_periods=2,
@@ -331,7 +340,7 @@ class MonitoringStack(Stack):
         alarms["api_5xx_errors"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["critical"])
         )
-        
+
         # API Gateway latency alarm
         alarms["api_latency"] = cloudwatch.Alarm(
             self,
@@ -345,7 +354,7 @@ class MonitoringStack(Stack):
                     "ApiName": f"options-strategy-api-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.AVERAGE,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=5000,  # 5 seconds
             evaluation_periods=3,
@@ -354,7 +363,7 @@ class MonitoringStack(Stack):
         alarms["api_latency"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["warning"])
         )
-        
+
         # DynamoDB throttling alarm
         alarms["dynamo_throttles"] = cloudwatch.Alarm(
             self,
@@ -368,7 +377,7 @@ class MonitoringStack(Stack):
                     "TableName": f"options-strategy-{self.env_name}"
                 },
                 statistic=cloudwatch.Stats.SUM,
-                period=Duration.minutes(5)
+                period=Duration.minutes(5),
             ),
             threshold=10,
             evaluation_periods=2,
@@ -377,7 +386,7 @@ class MonitoringStack(Stack):
         alarms["dynamo_throttles"].add_alarm_action(
             cw_actions.SnsAction(self.notification_topics["critical"])
         )
-        
+
         # Add VPC-specific alarms if VPC is provided
         if self.vpc:
             # VPC Flow Logs alarm
@@ -390,7 +399,7 @@ class MonitoringStack(Stack):
                     namespace="AWS/VPC/FlowLogs",
                     metric_name="PacketsDropped",
                     statistic=cloudwatch.Stats.SUM,
-                    period=Duration.minutes(10)
+                    period=Duration.minutes(10),
                 ),
                 threshold=100,
                 evaluation_periods=2,
@@ -399,19 +408,19 @@ class MonitoringStack(Stack):
             alarms["vpc_rejected_connections"].add_alarm_action(
                 cw_actions.SnsAction(self.notification_topics["security"])
             )
-        
+
         # Cost monitoring alarm
         if self.enable_cost_alerts:
             # Note: Cost Explorer metrics require special handling
             # This is a placeholder for custom cost monitoring logic
             pass
-        
+
         return alarms
 
     def _create_cloudwatch_dashboards(self) -> Dict[str, cloudwatch.Dashboard]:
         """Create comprehensive CloudWatch dashboards"""
         dashboards = {}
-        
+
         # Executive Dashboard - High-level business metrics
         dashboards["executive"] = cloudwatch.Dashboard(
             self,
@@ -473,7 +482,7 @@ class MonitoringStack(Stack):
                         ],
                         right=[
                             cloudwatch.Metric(
-                                namespace="AWS/ApiGateway", 
+                                namespace="AWS/ApiGateway",
                                 metric_name="5XXError",
                                 statistic=cloudwatch.Stats.SUM,
                             )
@@ -482,9 +491,9 @@ class MonitoringStack(Stack):
                         height=6,
                     ),
                 ],
-            ]
+            ],
         )
-        
+
         # Operations Dashboard - Detailed operational metrics
         dashboards["operations"] = cloudwatch.Dashboard(
             self,
@@ -567,9 +576,9 @@ class MonitoringStack(Stack):
                         height=6,
                     ),
                 ],
-            ]
+            ],
         )
-        
+
         # Technical Dashboard - Low-level technical metrics
         dashboards["technical"] = cloudwatch.Dashboard(
             self,
@@ -578,21 +587,25 @@ class MonitoringStack(Stack):
             widgets=[
                 # Infrastructure metrics
                 [
-                    cloudwatch.GraphWidget(
-                        title="VPC Flow Logs",
-                        left=[
-                            cloudwatch.Metric(
-                                namespace="AWS/VPC/FlowLogs",
-                                metric_name="PacketsDropped",
-                                statistic=cloudwatch.Stats.SUM,
-                            )
-                        ],
-                        width=6,
-                        height=6,
-                    ) if self.vpc else cloudwatch.TextWidget(
-                        markdown="VPC metrics not available",
-                        width=6,
-                        height=6,
+                    (
+                        cloudwatch.GraphWidget(
+                            title="VPC Flow Logs",
+                            left=[
+                                cloudwatch.Metric(
+                                    namespace="AWS/VPC/FlowLogs",
+                                    metric_name="PacketsDropped",
+                                    statistic=cloudwatch.Stats.SUM,
+                                )
+                            ],
+                            width=6,
+                            height=6,
+                        )
+                        if self.vpc
+                        else cloudwatch.TextWidget(
+                            markdown="VPC metrics not available",
+                            width=6,
+                            height=6,
+                        )
                     ),
                     cloudwatch.LogQueryWidget(
                         title="Error Log Analysis",
@@ -601,7 +614,7 @@ class MonitoringStack(Stack):
                             "fields @timestamp, @message",
                             "filter @message like /ERROR/",
                             "sort @timestamp desc",
-                            "limit 100"
+                            "limit 100",
                         ],
                         width=6,
                         height=6,
@@ -616,20 +629,20 @@ class MonitoringStack(Stack):
                             "fields @timestamp, @message",
                             "filter @message like /TRADE/",
                             "sort @timestamp desc",
-                            "limit 50"
+                            "limit 50",
                         ],
                         width=12,
                         height=6,
                     ),
                 ],
-            ]
+            ],
         )
-        
+
         return dashboards
 
     def _create_log_insights_queries(self) -> None:
         """Create saved CloudWatch Logs Insights queries"""
-        
+
         # Common queries for troubleshooting
         queries = [
             {
@@ -640,17 +653,21 @@ class MonitoringStack(Stack):
                     | stats count() by bin(5m)
                     | sort @timestamp desc
                 """,
-                "log_groups": [self.monitoring_log_groups["errors"].log_group_name],
+                "log_groups": [
+                    self.monitoring_log_groups["errors"].log_group_name
+                ],
             },
             {
-                "name": "PerformanceAnalysis", 
+                "name": "PerformanceAnalysis",
                 "query": """
                     fields @timestamp, @duration
                     | filter @duration > 1000
                     | stats avg(@duration), max(@duration), min(@duration) by bin(5m)
                     | sort @timestamp desc
                 """,
-                "log_groups": [self.monitoring_log_groups["performance"].log_group_name],
+                "log_groups": [
+                    self.monitoring_log_groups["performance"].log_group_name
+                ],
             },
             {
                 "name": "TradingVolumeAnalysis",
@@ -660,10 +677,12 @@ class MonitoringStack(Stack):
                     | stats count() as trade_count by bin(1h)
                     | sort @timestamp desc
                 """,
-                "log_groups": [self.monitoring_log_groups["trading"].log_group_name],
-            }
+                "log_groups": [
+                    self.monitoring_log_groups["trading"].log_group_name
+                ],
+            },
         ]
-        
+
         # Create Parameter Store entries for saved queries
         for i, query in enumerate(queries):
             ssm.StringParameter(
@@ -676,7 +695,7 @@ class MonitoringStack(Stack):
 
     def _create_custom_metrics(self) -> None:
         """Create custom metrics and metric filters for business KPIs"""
-        
+
         # Create metric filters for application logs
         trading_metric_filter = logs.MetricFilter(
             self,
@@ -684,34 +703,40 @@ class MonitoringStack(Stack):
             log_group=self.monitoring_log_groups["trading"],
             metric_namespace="OptionsStrategy/Trading",
             metric_name="TradingVolume",
-            filter_pattern=logs.FilterPattern.literal("[timestamp, request_id, level=\"INFO\", message=\"TRADE_EXECUTED\", volume]"),
+            filter_pattern=logs.FilterPattern.literal(
+                '[timestamp, request_id, level="INFO", message="TRADE_EXECUTED", volume]'
+            ),
             metric_value="$volume",
         )
-        
+
         error_metric_filter = logs.MetricFilter(
             self,
             "ErrorCountMetricFilter",
             log_group=self.monitoring_log_groups["errors"],
             metric_namespace="OptionsStrategy/Errors",
             metric_name="ErrorCount",
-            filter_pattern=logs.FilterPattern.literal("[timestamp, request_id, level=\"ERROR\", ...]"),
+            filter_pattern=logs.FilterPattern.literal(
+                '[timestamp, request_id, level="ERROR", ...]'
+            ),
             metric_value="1",
         )
-        
+
         performance_metric_filter = logs.MetricFilter(
             self,
-            "PerformanceMetricFilter", 
+            "PerformanceMetricFilter",
             log_group=self.monitoring_log_groups["performance"],
             metric_namespace="OptionsStrategy/Performance",
             metric_name="ResponseTime",
-            filter_pattern=logs.FilterPattern.literal("[timestamp, request_id, level=\"INFO\", message=\"REQUEST_COMPLETED\", duration]"),
+            filter_pattern=logs.FilterPattern.literal(
+                '[timestamp, request_id, level="INFO", message="REQUEST_COMPLETED", duration]'
+            ),
             metric_value="$duration",
         )
 
     def _create_monitoring_functions(self) -> Dict[str, lambda_.Function]:
         """Create Lambda functions for custom monitoring tasks"""
         functions = {}
-        
+
         # Health check function
         functions["health_check"] = lambda_.Function(
             self,
@@ -719,7 +744,8 @@ class MonitoringStack(Stack):
             function_name=f"options-strategy-health-check-{self.env_name}",
             runtime=lambda_.Runtime.PYTHON_3_11,
             handler="index.handler",
-            code=lambda_.Code.from_inline("""
+            code=lambda_.Code.from_inline(
+                """
 import json
 import boto3
 import urllib3
@@ -777,33 +803,34 @@ def check_database():
 def check_lambda_functions():
     # Placeholder for Lambda health check
     return True
-            """),
+            """
+            ),
             timeout=Duration.minutes(5),
             memory_size=256,
             description="Platform health check function",
             environment={
                 "ENV_NAME": self.env_name,
-            }
+            },
         )
-        
+
         # Grant permissions to publish metrics
         functions["health_check"].add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
                     "cloudwatch:PutMetricData",
                     "logs:CreateLogGroup",
-                    "logs:CreateLogStream", 
+                    "logs:CreateLogStream",
                     "logs:PutLogEvents",
                 ],
-                resources=["*"]
+                resources=["*"],
             )
         )
-        
+
         return functions
 
     def _create_monitoring_automation(self) -> None:
         """Create EventBridge rules for automated monitoring tasks"""
-        
+
         # Schedule health check function to run every 5 minutes
         health_check_rule = events.Rule(
             self,
@@ -812,11 +839,13 @@ def check_lambda_functions():
             description="Trigger health check function every 5 minutes",
             schedule=events.Schedule.rate(Duration.minutes(5)),
         )
-        
+
         health_check_rule.add_target(
-            events_targets.LambdaFunction(self.monitoring_functions["health_check"])
+            events_targets.LambdaFunction(
+                self.monitoring_functions["health_check"]
+            )
         )
-        
+
         # Create rule for alarm state changes
         alarm_state_rule = events.Rule(
             self,
@@ -827,21 +856,23 @@ def check_lambda_functions():
                 source=["aws.cloudwatch"],
                 detail_type=["CloudWatch Alarm State Change"],
                 detail={
-                    "alarmName": [{
-                        "prefix": f"options-strategy-{self.env_name}"
-                    }]
-                }
-            )
+                    "alarmName": [
+                        {"prefix": f"options-strategy-{self.env_name}"}
+                    ]
+                },
+            ),
         )
-        
+
         # Add target to log alarm state changes
         alarm_state_rule.add_target(
-            events_targets.CloudWatchLogGroup(self.monitoring_log_groups["monitoring"])
+            events_targets.CloudWatchLogGroup(
+                self.monitoring_log_groups["monitoring"]
+            )
         )
 
     def _create_parameter_store_entries(self) -> None:
         """Create Parameter Store entries for monitoring configuration"""
-        
+
         # Dashboard URLs
         ssm.StringParameter(
             self,
@@ -850,7 +881,7 @@ def check_lambda_functions():
             string_value=f"https://console.aws.amazon.com/cloudwatch/home?region={self.region}#dashboards:name={self.dashboards['executive'].dashboard_name}",
             description="URL to executive CloudWatch dashboard",
         )
-        
+
         ssm.StringParameter(
             self,
             "OperationsDashboardURL",
@@ -858,7 +889,7 @@ def check_lambda_functions():
             string_value=f"https://console.aws.amazon.com/cloudwatch/home?region={self.region}#dashboards:name={self.dashboards['operations'].dashboard_name}",
             description="URL to operations CloudWatch dashboard",
         )
-        
+
         ssm.StringParameter(
             self,
             "TechnicalDashboardURL",
@@ -866,7 +897,7 @@ def check_lambda_functions():
             string_value=f"https://console.aws.amazon.com/cloudwatch/home?region={self.region}#dashboards:name={self.dashboards['technical'].dashboard_name}",
             description="URL to technical CloudWatch dashboard",
         )
-        
+
         # SNS topic ARNs
         for topic_name, topic in self.notification_topics.items():
             ssm.StringParameter(
@@ -879,7 +910,7 @@ def check_lambda_functions():
 
     def _create_stack_outputs(self) -> None:
         """Create CloudFormation outputs for monitoring resources"""
-        
+
         # Dashboard outputs
         CfnOutput(
             self,
@@ -888,7 +919,7 @@ def check_lambda_functions():
             description="Name of the executive CloudWatch dashboard",
             export_name=f"OptionsStrategy-{self.env_name}-Executive-Dashboard",
         )
-        
+
         CfnOutput(
             self,
             "OperationsDashboardName",
@@ -896,15 +927,15 @@ def check_lambda_functions():
             description="Name of the operations CloudWatch dashboard",
             export_name=f"OptionsStrategy-{self.env_name}-Operations-Dashboard",
         )
-        
+
         CfnOutput(
             self,
-            "TechnicalDashboardName", 
+            "TechnicalDashboardName",
             value=self.dashboards["technical"].dashboard_name,
             description="Name of the technical CloudWatch dashboard",
             export_name=f"OptionsStrategy-{self.env_name}-Technical-Dashboard",
         )
-        
+
         # SNS topic outputs
         CfnOutput(
             self,
@@ -913,7 +944,7 @@ def check_lambda_functions():
             description="ARN of the critical alerts SNS topic",
             export_name=f"OptionsStrategy-{self.env_name}-Critical-Alerts-Topic",
         )
-        
+
         CfnOutput(
             self,
             "WarningAlertsTopicArn",
@@ -921,7 +952,7 @@ def check_lambda_functions():
             description="ARN of the warning alerts SNS topic",
             export_name=f"OptionsStrategy-{self.env_name}-Warning-Alerts-Topic",
         )
-        
+
         # Monitoring function output
         CfnOutput(
             self,
@@ -936,37 +967,37 @@ def check_lambda_functions():
     def critical_alerts_topic(self) -> sns.Topic:
         """Get critical alerts SNS topic"""
         return self.notification_topics["critical"]
-    
+
     @property
     def warning_alerts_topic(self) -> sns.Topic:
         """Get warning alerts SNS topic"""
         return self.notification_topics["warning"]
-    
+
     @property
     def cost_alerts_topic(self) -> sns.Topic:
         """Get cost alerts SNS topic"""
         return self.notification_topics["cost"]
-    
+
     @property
     def security_alerts_topic(self) -> sns.Topic:
         """Get security alerts SNS topic"""
         return self.notification_topics["security"]
-    
+
     @property
     def executive_dashboard(self) -> cloudwatch.Dashboard:
         """Get executive CloudWatch dashboard"""
         return self.dashboards["executive"]
-    
+
     @property
     def operations_dashboard(self) -> cloudwatch.Dashboard:
         """Get operations CloudWatch dashboard"""
         return self.dashboards["operations"]
-    
+
     @property
     def technical_dashboard(self) -> cloudwatch.Dashboard:
         """Get technical CloudWatch dashboard"""
         return self.dashboards["technical"]
-    
+
     @property
     def health_check_function(self) -> lambda_.Function:
         """Get health check Lambda function"""

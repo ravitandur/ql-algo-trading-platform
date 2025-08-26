@@ -10,13 +10,14 @@ region to comply with Indian market data residency requirements.
 """
 
 import os
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 class Environment(Enum):
     """Supported deployment environments"""
+
     DEV = "dev"
     STAGING = "staging"
     PROD = "prod"
@@ -25,6 +26,7 @@ class Environment(Enum):
 @dataclass
 class NetworkingConfig:
     """Networking configuration for environment"""
+
     vpc_cidr: str
     max_azs: int
     enable_nat_gateway: bool
@@ -36,6 +38,7 @@ class NetworkingConfig:
 @dataclass
 class SecurityConfig:
     """Security configuration for environment"""
+
     enable_waf: bool
     enable_shield: bool
     enable_strict_nacls: bool
@@ -48,6 +51,7 @@ class SecurityConfig:
 @dataclass
 class MonitoringConfig:
     """Monitoring and logging configuration"""
+
     log_retention_days: int
     enable_detailed_monitoring: bool
     enable_xray_tracing: bool
@@ -59,6 +63,7 @@ class MonitoringConfig:
 @dataclass
 class ResourceConfig:
     """Resource sizing and scaling configuration"""
+
     lambda_memory_size: int
     lambda_timeout: int
     ecs_cpu: int
@@ -71,6 +76,7 @@ class ResourceConfig:
 @dataclass
 class ComplianceConfig:
     """Compliance and regulatory settings"""
+
     data_residency_region: str
     enable_audit_logging: bool
     backup_retention_days: int
@@ -82,6 +88,7 @@ class ComplianceConfig:
 @dataclass
 class CostOptimizationConfig:
     """Cost optimization settings"""
+
     enable_spot_instances: bool
     enable_scheduled_scaling: bool
     enable_lifecycle_policies: bool
@@ -92,10 +99,11 @@ class CostOptimizationConfig:
 @dataclass
 class EnvironmentConfig:
     """Complete environment configuration"""
+
     env_name: str
     aws_account: Optional[str]
     aws_region: str
-    
+
     # Configuration sections
     networking: NetworkingConfig
     security: SecurityConfig
@@ -103,13 +111,13 @@ class EnvironmentConfig:
     resources: ResourceConfig
     compliance: ComplianceConfig
     cost_optimization: CostOptimizationConfig
-    
+
     # Tags applied to all resources
     resource_tags: Dict[str, str] = field(default_factory=dict)
-    
+
     # Feature flags
     feature_flags: Dict[str, bool] = field(default_factory=dict)
-    
+
     # Custom parameters for Parameter Store
     custom_parameters: Dict[str, str] = field(default_factory=dict)
 
@@ -126,7 +134,7 @@ class EnvironmentConfig:
                 "ManagedBy": "CDK",
                 "Region": self.aws_region,
             }
-        
+
         # Set default feature flags
         if not self.feature_flags:
             self.feature_flags = {
@@ -244,7 +252,9 @@ def _get_staging_config() -> EnvironmentConfig:
             enable_detailed_monitoring=True,
             enable_xray_tracing=True,
             enable_enhanced_monitoring=True,
-            alarm_notification_email=os.environ.get("STAGING_NOTIFICATION_EMAIL"),
+            alarm_notification_email=os.environ.get(
+                "STAGING_NOTIFICATION_EMAIL"
+            ),
         ),
         resources=ResourceConfig(
             lambda_memory_size=1024,
@@ -342,31 +352,33 @@ _ENVIRONMENT_CONFIGS = {
 }
 
 
-def get_environment_config(env_name: Optional[str] = None) -> EnvironmentConfig:
+def get_environment_config(
+    env_name: Optional[str] = None,
+) -> EnvironmentConfig:
     """
     Get configuration for specified environment
-    
+
     Args:
-        env_name: Environment name (dev, staging, prod). 
+        env_name: Environment name (dev, staging, prod).
                  If None, reads from CDK_ENVIRONMENT environment variable,
                  defaults to 'dev'
-    
+
     Returns:
         EnvironmentConfig: Configuration for the specified environment
-        
+
     Raises:
         ValueError: If environment name is not supported
     """
     if env_name is None:
         env_name = os.environ.get("CDK_ENVIRONMENT", "dev")
-    
+
     if env_name not in _ENVIRONMENT_CONFIGS:
         supported_envs = list(_ENVIRONMENT_CONFIGS.keys())
         raise ValueError(
             f"Unsupported environment: {env_name}. "
             f"Supported environments: {supported_envs}"
         )
-    
+
     return _ENVIRONMENT_CONFIGS[env_name]()
 
 
@@ -378,45 +390,56 @@ def get_all_environments() -> List[str]:
 def validate_environment_config(config: EnvironmentConfig) -> List[str]:
     """
     Validate environment configuration and return any issues
-    
+
     Args:
         config: Environment configuration to validate
-        
+
     Returns:
         List[str]: List of validation errors (empty if valid)
     """
     errors = []
-    
+
     # Validate AWS region for Indian market compliance
     if config.aws_region != "ap-south-1":
         errors.append(
             f"AWS region must be ap-south-1 for Indian market compliance, "
             f"got: {config.aws_region}"
         )
-    
+
     # Validate VPC CIDR
-    if not config.networking.vpc_cidr.endswith('/16'):
+    if not config.networking.vpc_cidr.endswith("/16"):
         errors.append(
             f"VPC CIDR should use /16 subnet for proper IP allocation, "
             f"got: {config.networking.vpc_cidr}"
         )
-    
+
     # Validate production settings
     if config.is_production:
         if config.networking.max_azs < 3:
-            errors.append("Production environment should use at least 3 AZs for HA")
-        
+            errors.append(
+                "Production environment should use at least 3 AZs for HA"
+            )
+
         if not config.security.enable_waf:
             errors.append("Production environment should enable WAF")
-        
+
         if not config.compliance.enable_deletion_protection:
-            errors.append("Production environment should enable deletion protection")
-        
+            errors.append(
+                "Production environment should enable deletion protection"
+            )
+
         if config.monitoring.log_retention_days < 90:
-            errors.append("Production environment should retain logs for at least 90 days")
-    
+            errors.append(
+                "Production environment should retain logs for at least 90 days"
+            )
+
     # Validate resource sizing
-    if config.env_name == "prod" and config.resources.lambda_memory_size < 1024:
-        errors.append("Production Lambda functions should have at least 1024MB memory")
-    
+    if (
+        config.env_name == "prod"
+        and config.resources.lambda_memory_size < 1024
+    ):
+        errors.append(
+            "Production Lambda functions should have at least 1024MB memory"
+        )
+
     return errors
