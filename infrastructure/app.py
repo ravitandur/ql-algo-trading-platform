@@ -31,6 +31,8 @@ from aws_cdk import (
 from constructs import Construct
 from .stacks.networking_stack import NetworkingStack
 from .stacks.security_stack import SecurityStack
+from .stacks.iam_stack import IAMStack
+from .stacks.config_stack import ConfigurationStack
 
 
 class OptionsStrategyPlatformStack(Stack):
@@ -50,9 +52,7 @@ class OptionsStrategyPlatformStack(Stack):
         self,
         scope: Construct,
         construct_id: str,
-        env_name: str = "dev",
-        vpc_cidr: str = "10.0.0.0/16",
-        max_azs: int = 2,
+        env_config: Any,  # EnvironmentConfig type
         **kwargs
     ) -> None:
         """
@@ -61,16 +61,13 @@ class OptionsStrategyPlatformStack(Stack):
         Args:
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
-            env_name: Environment name (dev, staging, prod)
-            vpc_cidr: CIDR block for the VPC
-            max_azs: Maximum number of availability zones
+            env_config: Environment configuration object
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
         
-        self.env_name = env_name
-        self.vpc_cidr = vpc_cidr
-        self.max_azs = max_azs
+        self.env_config = env_config
+        self.env_name = env_config.env_name
         
         # Apply standard tags to all resources in this stack
         self._apply_standard_tags()
@@ -79,9 +76,9 @@ class OptionsStrategyPlatformStack(Stack):
         self.networking_stack = NetworkingStack(
             scope,
             f"{construct_id}-Networking",
-            env_name=env_name,
-            vpc_cidr=vpc_cidr,
-            max_azs=max_azs,
+            env_name=self.env_name,
+            vpc_cidr=env_config.networking.vpc_cidr,
+            max_azs=env_config.networking.max_azs,
             **kwargs
         )
         
@@ -93,22 +90,38 @@ class OptionsStrategyPlatformStack(Stack):
             scope,
             f"{construct_id}-Security",
             vpc=self.vpc,
-            env_name=env_name,
-            enable_strict_nacls=(env_name == "prod"),
+            env_name=self.env_name,
+            enable_strict_nacls=env_config.security.enable_strict_nacls,
             **kwargs
         )
         
         # Get security groups reference
         self.security_groups = self.security_stack.security_groups
         
-        # Create IAM roles and policies
-        self.iam_roles = self._create_iam_roles()
+        # Create IAM infrastructure using dedicated stack
+        self.iam_stack = IAMStack(
+            scope,
+            f"{construct_id}-IAM",
+            env_name=self.env_name,
+            enable_enhanced_permissions=env_config.is_production,
+            **kwargs
+        )
+        
+        # Get IAM roles reference
+        self.iam_roles = self.iam_stack.all_roles
         
         # Create CloudWatch resources
         self.log_groups = self._create_cloudwatch_resources()
         
-        # Create Parameter Store entries
-        self._create_parameter_store_entries()
+        # Create configuration management using dedicated stack
+        self.config_stack = ConfigurationStack(
+            scope,
+            f"{construct_id}-Config",
+            env_config=env_config,
+            vpc=self.vpc,
+            iam_roles=self.iam_roles,
+            **kwargs
+        )
         
         # Create CloudWatch dashboard
         self._create_monitoring_dashboard()
@@ -118,118 +131,25 @@ class OptionsStrategyPlatformStack(Stack):
 
     def _apply_standard_tags(self) -> None:
         """Apply standard tags to all resources in this stack"""
-        tags_config = {
-            "Project": "OptionsStrategyPlatform",
-            "Environment": self.env_name,
-            "Owner": "platform-team",
-            "CostCenter": "trading-systems",
-            "DataResidency": "india",
-            "ManagedBy": "CDK",
-            "Stack": self.stack_name,
-        }
+        # Tags are now handled through env_config.resource_tags
         
-        for key, value in tags_config.items():
+        for key, value in self.env_config.resource_tags.items():
             Tags.of(self).add(key, value)
 
-    def _create_iam_roles(self) -> Dict[str, iam.Role]:
-        """
-        Create IAM roles and policies following principle of least privilege
-        
-        Returns:
-            Dict[str, iam.Role]: Dictionary of created IAM roles
-        """
-        roles = {}
-        
-        # Lambda Execution Role
-        roles["lambda_execution"] = iam.Role(
-            self,
-            "LambdaExecutionRole",
-            role_name=f"options-strategy-lambda-role-{self.env_name}",
-            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSLambdaVPCAccessExecutionRole"
-                )
-            ],
-        )
-        
-        # Add custom policy for Lambda functions
-        lambda_policy = iam.Policy(
-            self,
-            "LambdaCustomPolicy",
-            policy_name=f"options-strategy-lambda-policy-{self.env_name}",
-            statements=[
-                iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        "ssm:GetParameter",
-                        "ssm:GetParameters",
-                        "ssm:GetParametersByPath",
-                    ],
-                    resources=[
-                        f"arn:aws:ssm:{self.region}:{self.account}:parameter/options-strategy/{self.env_name}/*"
-                    ],
-                ),
-                iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        "logs:CreateLogGroup",
-                        "logs:CreateLogStream",
-                        "logs:PutLogEvents",
-                    ],
-                    resources=[
-                        f"arn:aws:logs:{self.region}:{self.account}:log-group:/aws/lambda/options-strategy-{self.env_name}-*"
-                    ],
-                ),
-            ],
-        )
-        
-        roles["lambda_execution"].attach_inline_policy(lambda_policy)
-        
-        # ECS Task Execution Role
-        roles["ecs_execution"] = iam.Role(
-            self,
-            "ECSExecutionRole",
-            role_name=f"options-strategy-ecs-execution-role-{self.env_name}",
-            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AmazonECSTaskExecutionRolePolicy"
-                )
-            ],
-        )
-        
-        # ECS Task Role
-        roles["ecs_task"] = iam.Role(
-            self,
-            "ECSTaskRole",
-            role_name=f"options-strategy-ecs-task-role-{self.env_name}",
-            assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-        )
-        
-        # Add custom policy for ECS tasks
-        ecs_policy = iam.Policy(
-            self,
-            "ECSTaskCustomPolicy",
-            policy_name=f"options-strategy-ecs-task-policy-{self.env_name}",
-            statements=[
-                iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        "ssm:GetParameter",
-                        "ssm:GetParameters",
-                        "ssm:GetParametersByPath",
-                    ],
-                    resources=[
-                        f"arn:aws:ssm:{self.region}:{self.account}:parameter/options-strategy/{self.env_name}/*"
-                    ],
-                ),
-            ],
-        )
-        
-        roles["ecs_task"].attach_inline_policy(ecs_policy)
-        
-        return roles
+    @property
+    def lambda_execution_role(self) -> iam.Role:
+        """Get Lambda execution role from IAM stack"""
+        return self.iam_stack.lambda_execution_role
+    
+    @property
+    def ecs_execution_role(self) -> iam.Role:
+        """Get ECS execution role from IAM stack"""
+        return self.iam_stack.ecs_execution_role
+    
+    @property
+    def ecs_task_role(self) -> iam.Role:
+        """Get ECS task role from IAM stack"""
+        return self.iam_stack.ecs_task_role
 
     def _create_cloudwatch_resources(self) -> Dict[str, logs.LogGroup]:
         """
@@ -240,22 +160,36 @@ class OptionsStrategyPlatformStack(Stack):
         """
         log_groups = {}
         
+        # Get retention period from environment config
+        if self.env_config.monitoring.log_retention_days <= 7:
+            retention = logs.RetentionDays.ONE_WEEK
+        elif self.env_config.monitoring.log_retention_days <= 14:
+            retention = logs.RetentionDays.TWO_WEEKS
+        elif self.env_config.monitoring.log_retention_days <= 30:
+            retention = logs.RetentionDays.ONE_MONTH
+        elif self.env_config.monitoring.log_retention_days <= 90:
+            retention = logs.RetentionDays.THREE_MONTHS
+        else:
+            retention = logs.RetentionDays.ONE_YEAR
+        
+        removal_policy = RemovalPolicy.RETAIN if self.env_config.is_production else RemovalPolicy.DESTROY
+        
         # Application Log Group
         log_groups["app"] = logs.LogGroup(
             self,
             "ApplicationLogGroup",
-            log_group_name=f"/aws/application/options-strategy/{self.env_name}",
-            retention=logs.RetentionDays.ONE_MONTH,
-            removal_policy=RemovalPolicy.DESTROY,
+            log_group_name=f"{self.env_config.get_log_group_prefix()}/application",
+            retention=retention,
+            removal_policy=removal_policy,
         )
         
         # API Gateway Log Group
         log_groups["api"] = logs.LogGroup(
             self,
             "APIGatewayLogGroup",
-            log_group_name=f"/aws/apigateway/options-strategy/{self.env_name}",
-            retention=logs.RetentionDays.ONE_MONTH,
-            removal_policy=RemovalPolicy.DESTROY,
+            log_group_name=f"{self.env_config.get_log_group_prefix()}/apigateway",
+            retention=retention,
+            removal_policy=removal_policy,
         )
         
         # Lambda Log Group (will be created automatically, but we set retention)
@@ -263,31 +197,30 @@ class OptionsStrategyPlatformStack(Stack):
             self,
             "LambdaLogGroup",
             log_group_name=f"/aws/lambda/options-strategy-{self.env_name}",
-            retention=logs.RetentionDays.TWO_WEEKS,
-            removal_policy=RemovalPolicy.DESTROY,
+            retention=retention,
+            removal_policy=removal_policy,
         )
         
         return log_groups
 
-    def _create_parameter_store_entries(self) -> None:
-        """Create Parameter Store entries for configuration management"""
+    def _create_legacy_parameter_store_entries(self) -> None:
+        """Create legacy Parameter Store entries for backward compatibility"""
         
-        # Environment-specific parameters
+        # Legacy parameters for backward compatibility
+        # Main configuration is now handled by ConfigurationStack
         parameters = {
-            "environment": self.env_name,
-            "region": self.region,
-            "lambda-execution-role-arn": self.iam_roles["lambda_execution"].role_arn,
-            "ecs-execution-role-arn": self.iam_roles["ecs_execution"].role_arn,
-            "ecs-task-role-arn": self.iam_roles["ecs_task"].role_arn,
+            "lambda-execution-role-arn": self.lambda_execution_role.role_arn,
+            "ecs-execution-role-arn": self.ecs_execution_role.role_arn,
+            "ecs-task-role-arn": self.ecs_task_role.role_arn,
         }
         
         for key, value in parameters.items():
             ssm.StringParameter(
                 self,
-                f"Parameter{key.replace('-', '').title()}",
-                parameter_name=f"/options-strategy/{self.env_name}/{key}",
+                f"LegacyParameter{key.replace('-', '').title()}",
+                parameter_name=f"/options-strategy/{self.env_name}/legacy/{key}",
                 string_value=value,
-                description=f"Options Strategy Platform - {key} for {self.env_name}",
+                description=f"Legacy parameter - {key} for {self.env_name} (use ConfigurationStack instead)",
             )
 
     def _create_monitoring_dashboard(self) -> None:
@@ -307,7 +240,7 @@ class OptionsStrategyPlatformStack(Stack):
                     cloudwatch.Metric(
                         namespace="AWS/Logs",
                         metric_name="IncomingLogEvents",
-                        dimensions_map={"LogGroupName": f"/aws/application/options-strategy/{self.env_name}"},
+                        dimensions_map={"LogGroupName": f"{self.env_config.get_log_group_prefix()}/application"},
                     )
                 ],
                 width=12,
@@ -318,26 +251,36 @@ class OptionsStrategyPlatformStack(Stack):
     def _create_stack_outputs(self) -> None:
         """Create CloudFormation outputs for important resource identifiers"""
         
+        # Core infrastructure outputs
         CfnOutput(
             self,
-            "LambdaExecutionRoleArn",
-            value=self.iam_roles["lambda_execution"].role_arn,
-            description="ARN of Lambda execution role",
-            export_name=f"OptionsStrategy-{self.env_name}-Lambda-Role-ARN",
+            "VPCId",
+            value=self.vpc.vpc_id,
+            description="VPC ID for the platform",
+            export_name=f"OptionsStrategy-{self.env_name}-VPC-ID",
         )
         
         CfnOutput(
             self,
-            "ECSExecutionRoleArn",
-            value=self.iam_roles["ecs_execution"].role_arn,
-            description="ARN of ECS execution role",
-            export_name=f"OptionsStrategy-{self.env_name}-ECS-Execution-Role-ARN",
+            "EnvironmentName",
+            value=self.env_name,
+            description="Environment name",
+            export_name=f"OptionsStrategy-{self.env_name}-Environment",
+        )
+        
+        # Stack references
+        CfnOutput(
+            self,
+            "IAMStackName",
+            value=self.iam_stack.stack_name,
+            description="IAM stack name",
+            export_name=f"OptionsStrategy-{self.env_name}-IAM-Stack",
         )
         
         CfnOutput(
             self,
-            "ECSTaskRoleArn",
-            value=self.iam_roles["ecs_task"].role_arn,
-            description="ARN of ECS task role",
-            export_name=f"OptionsStrategy-{self.env_name}-ECS-Task-Role-ARN",
+            "ConfigStackName",
+            value=self.config_stack.stack_name,
+            description="Configuration stack name",
+            export_name=f"OptionsStrategy-{self.env_name}-Config-Stack",
         )
