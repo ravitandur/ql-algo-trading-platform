@@ -75,8 +75,8 @@ class OptionsStrategyPlatformStack(Stack):
         
         # Create networking infrastructure using modular stack
         self.networking_stack = NetworkingStack(
-            scope,
-            f"{construct_id}-Networking",
+            self,
+            "Networking",
             env_name=self.env_name,
             vpc_cidr=env_config.networking.vpc_cidr,
             max_azs=env_config.networking.max_azs,
@@ -88,8 +88,8 @@ class OptionsStrategyPlatformStack(Stack):
         
         # Create security infrastructure using modular stack
         self.security_stack = SecurityStack(
-            scope,
-            f"{construct_id}-Security",
+            self,
+            "Security",
             vpc=self.vpc,
             env_name=self.env_name,
             enable_strict_nacls=env_config.security.enable_strict_nacls,
@@ -101,8 +101,8 @@ class OptionsStrategyPlatformStack(Stack):
         
         # Create IAM infrastructure using dedicated stack
         self.iam_stack = IAMStack(
-            scope,
-            f"{construct_id}-IAM",
+            self,
+            "IAM",
             env_name=self.env_name,
             enable_enhanced_permissions=env_config.is_production,
             **kwargs
@@ -116,8 +116,8 @@ class OptionsStrategyPlatformStack(Stack):
         
         # Create configuration management using dedicated stack
         self.config_stack = ConfigurationStack(
-            scope,
-            f"{construct_id}-Config",
+            self,
+            "Config",
             env_config=env_config,
             vpc=self.vpc,
             iam_roles=self.iam_roles,
@@ -126,8 +126,8 @@ class OptionsStrategyPlatformStack(Stack):
         
         # Create comprehensive monitoring stack
         self.monitoring_stack = MonitoringStack(
-            scope,
-            f"{construct_id}-Monitoring",
+            self,
+            "Monitoring",
             env_name=self.env_name,
             vpc=self.vpc,
             notification_email=env_config.monitoring.alarm_notification_email,
