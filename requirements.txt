@@ -1,0 +1,25 @@
+# AWS CDK v2 Core Libraries
+aws-cdk-lib==2.100.0
+constructs>=10.0.0,<11.0.0
+
+# Additional AWS CDK Libraries for options trading platform
+aws-cdk.aws-lambda-python-alpha==2.100.0a0
+aws-cdk.aws-apigatewayv2-alpha==2.100.0a0
+aws-cdk.aws-apigatewayv2-integrations-alpha==2.100.0a0
+
+# Python Libraries for Infrastructure Code
+boto3>=1.28.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Development and Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+pre-commit>=3.0.0
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0

@@ -171,4 +171,9 @@ dev/
 # Backup files
 *.bak
 *.backup
-*.old
+*.old.venv/
+cdk.out/
+*.pyc
+__pycache__/
+bandit-report.json
+cdk.context.json
