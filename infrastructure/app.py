@@ -33,6 +33,7 @@ from .stacks.networking_stack import NetworkingStack
 from .stacks.security_stack import SecurityStack
 from .stacks.iam_stack import IAMStack
 from .stacks.config_stack import ConfigurationStack
+from .stacks.monitoring_stack import MonitoringStack
 
 
 class OptionsStrategyPlatformStack(Stack):
@@ -123,7 +124,20 @@ class OptionsStrategyPlatformStack(Stack):
             **kwargs
         )
         
-        # Create CloudWatch dashboard
+        # Create comprehensive monitoring stack
+        self.monitoring_stack = MonitoringStack(
+            scope,
+            f"{construct_id}-Monitoring",
+            env_name=self.env_name,
+            vpc=self.vpc,
+            notification_email=env_config.monitoring.alarm_notification_email,
+            enable_detailed_monitoring=env_config.monitoring.enable_detailed_monitoring,
+            enable_cost_alerts=env_config.monitoring.enable_cost_alerts,
+            log_retention_days=env_config.monitoring.log_retention_days,
+            **kwargs
+        )
+        
+        # Create basic CloudWatch dashboard (legacy - now supplemented by monitoring stack)
         self._create_monitoring_dashboard()
         
         # Output important resource identifiers
@@ -283,4 +297,12 @@ class OptionsStrategyPlatformStack(Stack):
             value=self.config_stack.stack_name,
             description="Configuration stack name",
             export_name=f"OptionsStrategy-{self.env_name}-Config-Stack",
+        )
+        
+        CfnOutput(
+            self,
+            "MonitoringStackName",
+            value=self.monitoring_stack.stack_name,
+            description="Monitoring stack name",
+            export_name=f"OptionsStrategy-{self.env_name}-Monitoring-Stack",
         )
