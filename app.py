@@ -26,7 +26,7 @@ Usage:
 import os
 import sys
 from aws_cdk import App, Environment
-from infrastructure import OptionsStrategyPlatformStack
+from infrastructure.app import OptionsStrategyPlatformStack
 from config.environments import get_environment_config, validate_environment_config
 
 
@@ -154,24 +154,28 @@ def main():
         print("🏗️  Creating CDK application...")
         app = App()
         
-        # Create the main infrastructure stack
-        stack_name = env_config.stack_name
+        # Set app-level context for CDKv2 compatibility
+        app.node.set_context("@aws-cdk/core:stackRelativeExports", True)
         
-        print(f"📦 Creating infrastructure stack: {stack_name}")
+        # Create comprehensive single infrastructure stack
+        print("📦 Creating comprehensive infrastructure stack:")
+        print("   • VPC with multi-tier networking (public, private app, private DB)")
+        print("   • Comprehensive security groups and IAM policies")  
+        print("   • Advanced CloudWatch monitoring, dashboards, and alerting")
+        print("   • Production-grade Parameter Store configuration management")
+        print("   • SNS topics for notifications and operational alerts")
+        print("   • VPC Flow Logs and comprehensive logging")
+        print()
+        
+        stack_name = env_config.stack_name
         OptionsStrategyPlatformStack(
             app,
             stack_name,
             env_config=env_config,
             env=aws_env,
-            description=f"Options Strategy Lifecycle Platform - {env_config.env_name.title()} Environment",
+            description=f"Comprehensive Options Strategy Platform - {env_config.env_name} environment",
             stack_name=stack_name,
         )
-        
-        # Add app-level tags
-        app.node.set_context("@aws-cdk/core:enableStackNameDuplicates", True)
-        
-        # Set context for better error messages
-        app.node.set_context("@aws-cdk/core:stackRelativeExports", True)
         
         print("✅ CDK application initialized successfully")
         print()
