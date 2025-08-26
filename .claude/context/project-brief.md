@@ -1,6 +1,6 @@
 ---
-created: 2025-08-26T11:04:13Z
-last_updated: 2025-08-26T11:04:13Z
+created: 2025-08-26T12:32:21Z
+last_updated: 2025-08-26T12:32:21Z
 version: 1.0
 author: Claude Code PM System
 ---
@@ -10,150 +10,227 @@ author: Claude Code PM System
 ## Project Overview
 
 ### What It Does
-**QL Algorithmic Trading Platform** is a comprehensive quantitative trading system that enables users to develop, test, and execute algorithmic trading strategies across multiple financial markets. The platform provides a complete trading lifecycle solution from strategy research through live execution.
+**QL Algorithmic Trading Platform** is an AWS-native, event-driven system that enables systematic options trading across multiple Indian brokers. The platform automates the complete options strategy lifecycle from basket creation and strategy configuration through automated execution, real-time monitoring, and performance tracking.
 
 ### Why It Exists
-The quantitative trading landscape is fragmented, with traders often cobbling together multiple tools and platforms to achieve their goals. Existing solutions either lack flexibility, have poor execution capabilities, or require extensive technical expertise. QL bridges this gap by providing a unified, powerful, yet accessible platform for algorithmic trading.
+The Indian algorithmic trading market lacks a comprehensive platform specifically designed for options strategies with multi-broker support. Existing solutions are either too generic for Indian markets, lack proper options-specific features, or don't provide the automation and reliability required for systematic trading at scale.
 
-### Key Differentiators
-1. **End-to-End Integration:** Complete trading lifecycle in one platform
-2. **Multi-Asset Support:** Equities, futures, forex, crypto, options
-3. **Risk-First Design:** Built-in risk management at every level  
-4. **Real-Time Performance:** Low-latency execution and data processing
-5. **Open Architecture:** Extensible and customizable framework
+### Key Problem Solved
+**Manual Trading Bottleneck:** Professional options traders currently spend 4-6 hours daily on manual execution tasks that should be automated. This platform reduces that to <1 hour while increasing execution consistency and enabling management of 10x more concurrent strategies.
 
 ## Project Scope
 
-### In Scope - Core Platform
-- **Strategy Development:** Visual and code-based strategy creation
-- **Backtesting Engine:** Historical simulation with realistic conditions
-- **Real-Time Execution:** Live trading with multiple exchange connectivity
-- **Portfolio Management:** Multi-strategy allocation and risk control
-- **Data Pipeline:** Market data ingestion, processing, and storage
-- **Analytics Dashboard:** Performance monitoring and reporting
+### In Scope - Core Platform (Current Epic)
 
-### In Scope - Supporting Systems  
-- **User Management:** Authentication, authorization, multi-tenancy
-- **API Framework:** REST/WebSocket APIs for external integrations
-- **Configuration Management:** Environment-specific settings
-- **Monitoring & Logging:** System health and audit trails
-- **Documentation:** User guides, API documentation, examples
+#### Foundation Infrastructure
+- **AWS CDK (Python):** Complete infrastructure as code for ap-south-1 region
+- **DynamoDB:** Scalable data storage for users, baskets, strategies, orders, positions
+- **EventBridge:** Time-based strategy execution scheduling with IST support
+- **Lambda Functions:** Serverless business logic execution
+- **API Gateway:** RESTful APIs with Cognito authentication
 
-### Out of Scope - Initial Version
-- **Mobile Applications:** Desktop/web-first approach
-- **Advanced ML/AI:** Focus on traditional quant methods initially  
-- **High-Frequency Trading:** Sub-millisecond latency requirements
-- **Regulatory Reporting:** Basic compliance only
-- **White-Label Solutions:** Single-tenant architecture initially
+#### Core Business Features
+- **Basket Management:** Organize multiple strategies into logical trading baskets
+- **Strategy Configuration:** Time-based and indicator-based entry/exit rules with DTE filters
+- **Automated Execution:** EventBridge-driven strategy execution with condition evaluation
+- **Multi-Broker Integration:** Zerodha, Angel One, and Finvasia broker support
+- **Position Tracking:** Real-time position synchronization and P&L calculation
+- **Order Management:** Complete order lifecycle with error handling and notifications
+
+#### Supporting Systems
+- **User Authentication:** AWS Cognito with role-based access control
+- **Marketplace:** Admin-curated strategy templates and user subscriptions
+- **Monitoring:** CloudWatch logging, metrics, and alerting
+- **Data Archival:** S3/Parquet for historical orders and performance data
+
+### Out of Scope - Initial Release
+
+#### Advanced Features (Future Phases)
+- **Backtesting Engine:** Historical strategy validation (Phase 2)
+- **Machine Learning:** Strategy optimization using ML (Phase 3)
+- **Options Greeks:** Real-time Greeks calculation and hedging (Phase 2)
+- **Advanced Analytics:** Portfolio optimization and risk analytics (Phase 2)
+- **Mobile Apps:** Native mobile applications (Phase 4)
+
+#### Market Expansion
+- **International Brokers:** US, European broker integration (Phase 5)
+- **Other Asset Classes:** Futures, forex, crypto trading (Phase 3)
+- **High-Frequency Trading:** Sub-second execution optimization (Phase 4)
 
 ## Goals & Objectives
 
 ### Primary Goals
 
-#### 1. Technical Excellence
-- **Performance:** <50ms order execution latency
-- **Reliability:** 99.9% uptime during market hours
-- **Scalability:** Support 1000+ concurrent strategies per instance
-- **Security:** Enterprise-grade security and data protection
+#### 1. Operational Excellence
+- **Reliability:** 99.9% uptime during Indian market hours (9:15 AM - 3:30 PM IST)
+- **Performance:** <500ms order execution latency for 95% of orders
+- **Scalability:** Support 1,000+ concurrent users with 50+ strategies each
+- **Data Accuracy:** 100% position synchronization accuracy with broker data
 
-#### 2. User Experience  
-- **Accessibility:** Non-programmers can build basic strategies
-- **Productivity:** Reduce strategy development time by 70%
-- **Transparency:** Full visibility into system behavior
-- **Flexibility:** Support diverse trading styles and methodologies
+#### 2. User Experience Excellence
+- **Productivity:** Reduce daily manual trading time from 4-6 hours to <1 hour
+- **Ease of Use:** New users executing first strategy within 30 minutes
+- **Strategy Management:** Enable management of 50+ concurrent strategies per user
+- **Multi-Broker Support:** Seamless execution across 3+ Indian brokers
 
 #### 3. Business Viability
-- **Market Fit:** Product-market fit within 12 months
-- **User Growth:** 1000+ active users in Year 1  
-- **Revenue Model:** Sustainable subscription and performance-based pricing
-- **Competitive Position:** Top 3 platform in target segment
+- **Market Penetration:** 1,000+ active users within 12 months
+- **Transaction Volume:** 100,000+ orders executed monthly
+- **Revenue Model:** Sustainable subscription and transaction-based pricing
+- **Technology Leadership:** First AWS-native platform for Indian options trading
 
 ### Success Criteria
 
 #### Technical Metrics
-- **Latency:** P99 order execution <100ms
-- **Throughput:** 10,000 orders/second capacity
-- **Data Quality:** 99.99% market data accuracy
-- **System Stability:** <5 minutes total downtime per month
+- **API Performance:** 95th percentile response time <500ms
+- **System Reliability:** <5 minutes total downtime per month during market hours
+- **Data Integrity:** 100% audit trail completion for all trading activities
+- **Broker Integration:** <1% order failure rate due to platform issues
 
-#### User Metrics  
-- **Adoption:** 80% of users create their first strategy within 7 days
-- **Engagement:** Average 15+ strategies per active user
-- **Retention:** 85% monthly retention rate
-- **Satisfaction:** NPS score >50
+#### User Metrics
+- **User Adoption:** 80% of new users create first strategy within 24 hours
+- **User Retention:** 85% monthly active user retention rate
+- **Strategy Deployment:** Average 25+ active strategies per power user
+- **User Satisfaction:** Net Promoter Score >70
 
 #### Business Metrics
-- **Growth:** 25% month-over-month user growth
-- **Revenue:** $1M ARR within 18 months  
-- **Market Share:** 5% of addressable market captured
-- **Funding:** Series A funding secured based on traction
+- **Growth Rate:** 25% month-over-month user growth in first year
+- **Market Share:** 5% of addressable Indian algo trading market
+- **Revenue Growth:** $1M ARR within 18 months of launch
+- **Capital Efficiency:** Break-even within 24 months
 
 ## Key Objectives
 
-### Phase 1: Foundation (Months 1-6)
-- **Objective:** Build core platform infrastructure
-- **Deliverables:**
-  - Basic strategy development framework
-  - Simple backtesting engine
-  - Paper trading capabilities
-  - User authentication and basic UI
-- **Success Criteria:** 100 beta users actively testing
+### Phase 1: Foundation (Months 1-6) - Current Epic
+**Objective:** Build production-ready MVP with core functionality
 
-### Phase 2: Execution (Months 7-12)  
-- **Objective:** Enable live trading capabilities
-- **Deliverables:**
-  - Real-time market data integration
-  - Live trading execution
-  - Risk management system
-  - Performance analytics
-- **Success Criteria:** 500 users, 10% using live trading
+**Deliverables:**
+- Complete AWS infrastructure with Python CDK
+- Basic strategy lifecycle management (create, execute, monitor)
+- Zerodha broker integration with order placement
+- User authentication and basic web interface
+- Real-time position tracking and P&L calculation
 
-### Phase 3: Scale (Months 13-18)
-- **Objective:** Scale platform and user base
-- **Deliverables:**
-  - Multi-exchange connectivity
-  - Advanced portfolio management
-  - API ecosystem
-  - Enterprise features
-- **Success Criteria:** 1000+ users, sustainable revenue
+**Success Criteria:** 
+- 100 beta users executing strategies successfully
+- 99.5% uptime during testing period
+- <1 second average order execution time
+
+### Phase 2: Multi-Broker & Analytics (Months 7-12)
+**Objective:** Enable multi-broker execution with basic analytics
+
+**Deliverables:**
+- Angel One and Finvasia broker integrations
+- Cross-broker position management
+- Basic performance analytics dashboard
+- Marketplace with admin-curated strategies
+- Advanced order types and risk management
+
+**Success Criteria:**
+- 500 active users with multi-broker execution
+- 50,000+ orders executed monthly across all brokers
+- User retention rate >80%
+
+### Phase 3: Scale & Intelligence (Months 13-18)
+**Objective:** Scale platform and add intelligent features
+
+**Deliverables:**
+- Advanced analytics and portfolio optimization
+- Basic ML-driven strategy recommendations
+- Enhanced risk management and compliance
+- API ecosystem for third-party integrations
+- Performance optimization for scale
+
+**Success Criteria:**
+- 1,000+ active users managing 25,000+ strategies
+- 200,000+ orders executed monthly
+- Sustainable revenue model established
 
 ## Resource Requirements
 
-### Team Structure
-- **Engineering:** 3-5 developers (backend, frontend, infrastructure)
-- **Product:** 1 product manager, 1 UX designer  
-- **Domain Expertise:** 1-2 quantitative analysts
-- **Operations:** 1 DevOps/SRE engineer
-- **Leadership:** 1 technical lead/architect
-
 ### Technology Stack
-- **Primary Decision Pending:** Python, Node.js/TypeScript, or Rust
-- **Infrastructure:** Cloud-native deployment (AWS/GCP)
-- **Data:** PostgreSQL, Redis, time-series database
-- **Monitoring:** Prometheus, Grafana, ELK stack
+- **Primary Language:** Python 3.9+ for all components
+- **Cloud Provider:** AWS (ap-south-1 region for Indian compliance)
+- **Infrastructure:** CDK (Python), Lambda, DynamoDB, EventBridge, API Gateway
+- **Frontend:** React.js with TypeScript (future development)
+- **Monitoring:** CloudWatch, X-Ray for observability
+
+### Team Structure (Recommended)
+- **Technical Lead/Architect:** 1 person - system design and technical decisions
+- **Backend Engineers:** 2-3 people - Python/AWS development
+- **DevOps Engineer:** 1 person - Infrastructure and deployment automation
+- **Product Manager:** 1 person - requirements and user experience
+- **QA Engineer:** 1 person - testing and quality assurance
 
 ### Budget Considerations
-- **Personnel:** $150K-200K average fully-loaded cost per engineer
-- **Infrastructure:** $5K-50K/month depending on scale
-- **Data Feeds:** $10K-100K/month for market data
-- **Third-Party Services:** $5K-20K/month for various SaaS tools
+#### Development Costs
+- **Personnel:** $200K-300K total for 6-month MVP development
+- **AWS Infrastructure:** $2K-10K/month depending on usage scale
+- **Third-Party Services:** $5K-15K/month (data feeds, monitoring, etc.)
+- **Broker API Access:** Variable based on transaction volume
 
-## Risk Assessment
+#### Operational Costs
+- **Market Data:** $10K-50K/month for real-time data feeds
+- **Compliance & Legal:** $20K-50K for regulatory setup
+- **Insurance:** Professional liability coverage for financial services
+
+## Risk Assessment & Mitigation
 
 ### Technical Risks
-- **Complexity:** Trading systems are inherently complex
-- **Performance:** Low-latency requirements are challenging
-- **Data Quality:** Market data reliability and accuracy
-- **Regulatory:** Financial services compliance requirements
+#### High Impact Risks
+- **Broker API Reliability:** Risk of broker API downtime or changes
+  - *Mitigation:* Multi-broker support, circuit breakers, fallback mechanisms
+- **AWS Service Limits:** Risk of hitting AWS service quotas under scale
+  - *Mitigation:* Early limit increases, auto-scaling, multi-region fallback
+- **Data Consistency:** Risk of position/order data inconsistencies
+  - *Mitigation:* Strong consistency models, reconciliation processes, audit trails
 
-### Market Risks  
-- **Competition:** Established players with significant resources
-- **Market Conditions:** Trading platform success tied to market volatility
-- **User Acquisition:** Difficult to reach target technical audience
-- **Monetization:** Proving ROI for subscription model
+#### Medium Impact Risks
+- **Performance Under Load:** Risk of system slowdown during high volatility
+  - *Mitigation:* Load testing, auto-scaling, provisioned capacity
+- **Security Vulnerabilities:** Risk of data breaches or unauthorized access
+  - *Mitigation:* Security reviews, penetration testing, encryption
 
-### Mitigation Strategies
-- **MVP Approach:** Start simple, iterate based on feedback
-- **Domain Expertise:** Hire experienced quantitative trading professionals
-- **Technology Choices:** Use proven technologies where possible
-- **Customer Development:** Close partnership with early adopters
+### Business Risks
+#### Market Risks
+- **Regulatory Changes:** Risk of new regulations affecting algorithmic trading
+  - *Mitigation:* Regulatory monitoring, compliance-first design, legal counsel
+- **Competition:** Risk of large players entering the market
+  - *Mitigation:* Strong differentiation, user lock-in, rapid feature development
+- **Market Conditions:** Risk of low volatility reducing options trading volume
+  - *Mitigation:* Diversified strategy types, multiple asset class support
+
+#### Execution Risks
+- **Team Scaling:** Risk of not finding qualified developers
+  - *Mitigation:* Competitive compensation, remote work options, strong culture
+- **Time to Market:** Risk of delayed launch losing market opportunity
+  - *Mitigation:* Agile development, MVP approach, parallel workstreams
+
+## Success Measurement Framework
+
+### Leading Indicators (Early Success Signals)
+- **Development Velocity:** Tasks completed per sprint vs. planned
+- **Code Quality:** Test coverage >90%, zero critical security issues
+- **User Engagement:** Beta user feedback scores and feature requests
+- **Technical Performance:** API response times and system reliability metrics
+
+### Lagging Indicators (Business Success)
+- **User Growth:** Monthly active users and new user acquisition rate
+- **Transaction Volume:** Number and value of orders executed through platform
+- **Revenue Metrics:** Monthly recurring revenue and customer lifetime value
+- **Market Position:** Market share and competitive positioning
+
+### Key Performance Dashboard
+#### Real-Time Metrics
+- System uptime and performance
+- Active user count and concurrent strategies
+- Order execution success rate and latency
+- Revenue and transaction volume
+
+#### Weekly/Monthly Reviews
+- User retention and churn analysis
+- Feature adoption and usage patterns
+- Customer satisfaction and NPS scores
+- Financial performance vs. targets
+
+This project brief establishes the foundation for building a comprehensive algorithmic trading platform specifically designed for the Indian options market, with clear scope, objectives, and success criteria to guide development and measure progress.

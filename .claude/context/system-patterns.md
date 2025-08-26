@@ -1,167 +1,286 @@
 ---
-created: 2025-08-26T11:04:13Z
-last_updated: 2025-08-26T11:04:13Z
+created: 2025-08-26T12:32:21Z
+last_updated: 2025-08-26T12:32:21Z
 version: 1.0
 author: Claude Code PM System
 ---
 
 # System Patterns & Architecture
 
-## Observed Architectural Patterns
+## Observed Project Management Patterns
 
-### Project Management Layer
-The Claude PM system demonstrates several key patterns:
+### Epic-Driven Development Pattern
+The project demonstrates a sophisticated epic-based development approach:
 
-#### Command Pattern
-- **Implementation:** Each PM command is encapsulated as a separate module
-- **Location:** `.claude/commands/pm/`
-- **Examples:** `epic-start.md`, `issue-analyze.md`
-- **Benefits:** Modular, extensible, easy to maintain
+#### Command Pattern Implementation
+- **Structure:** Each PM command encapsulated as separate executable module
+- **Location:** `.claude/commands/` with 47 distinct command implementations
+- **Examples:** `epic-start.md`, `prd-new.md`, `context-create.md`
+- **Benefits:** Modular, extensible, self-documenting workflow
 
-#### Agent-Based Architecture
-- **Implementation:** Specialized agents for different tasks
-- **Location:** `.claude/agents/`
-- **Examples:** `code-analyzer.md`, `test-runner.md`
-- **Benefits:** Separation of concerns, focused expertise
+#### Agent-Based Task Automation
+- **Implementation:** Specialized AI agents for different development tasks
+- **Location:** `.claude/agents/` with 4 specialized agents
+- **Examples:** `code-analyzer.md`, `test-runner.md`, `parallel-worker.md`
+- **Benefits:** Context optimization, parallel execution, specialized expertise
 
-#### Script-Based Automation
-- **Implementation:** Shell scripts for common operations
-- **Location:** `.claude/scripts/pm/`
-- **Examples:** `epic-status.sh`, `validate.sh`
-- **Benefits:** Automation, consistency, repeatability
+#### Sequential Task Decomposition
+- **Pattern:** Large features broken into sequential, dependency-ordered tasks
+- **Implementation:** 34 tasks for options-strategy-lifecycle epic
+- **Dependencies:** Each task explicitly depends on previous task completion
+- **GitHub Integration:** Direct correlation between tasks and GitHub issues
 
-## Recommended Application Patterns
+## Planned Application Architecture Patterns
 
-### Core Architecture: Event-Driven Microservices
+### Event-Driven Microservices Architecture
 
-#### Trading Engine Pattern
+#### Core Trading Engine Pattern
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Data Ingestion │───▶│  Strategy Engine │───▶│  Order Manager  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Market Data    │    │   Signals DB    │    │   Positions DB  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-#### Strategy Pattern Implementation
-- **Base Strategy Interface:** Abstract strategy class/trait
-- **Concrete Strategies:** Individual trading algorithms
-- **Strategy Registry:** Dynamic strategy loading
-- **Benefits:** Pluggable algorithms, easy testing, modularity
-
-#### Observer Pattern for Events
-- **Market Data Events:** Price updates, volume changes
-- **Trading Events:** Order fills, position changes
-- **System Events:** Errors, health checks
-- **Benefits:** Loose coupling, real-time responsiveness
-
-### Data Flow Architecture
-
-#### Pipeline Pattern
-```
-Raw Data → Validation → Normalization → Feature Engineering → Storage
-    ↓           ↓            ↓                ↓              ↓
- Logging    Error        Format         Calculate       Database
-           Handling     Conversion      Indicators        Cache
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│   EventBridge       │───▶│   Lambda Functions  │───▶│   DynamoDB Tables   │
+│   (Scheduling)      │    │   (Business Logic)  │    │   (Data Storage)    │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+         │                           │                           │
+         ▼                           ▼                           ▼
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│   Time-Based        │    │   Step Functions    │    │   SQS Queues        │
+│   Strategy Triggers │    │   (Orchestration)   │    │   (Async Processing)│
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
-#### Repository Pattern
-- **Data Access Layer:** Abstract database operations
-- **Multiple Implementations:** SQL, NoSQL, Cache
-- **Interface Consistency:** Uniform data access
-- **Benefits:** Testability, flexibility, maintainability
+#### Strategy Pattern for Trading Logic
+- **Base Strategy Interface:** Abstract strategy class for all trading algorithms
+- **Concrete Implementations:** Specific strategies (straddles, spreads, etc.)
+- **Strategy Registry:** Dynamic strategy loading and configuration
+- **Runtime Selection:** User-selectable strategies with parameters
 
-### Risk Management Patterns
+#### Broker Abstraction Pattern
+```python
+# Abstract Broker Interface
+class BrokerInterface:
+    def place_order(self, order: Order) -> OrderResult
+    def get_positions(self, account: Account) -> List[Position]
+    def get_market_data(self, symbol: str) -> MarketData
 
-#### Circuit Breaker Pattern
-- **Implementation:** Prevent cascade failures
-- **Triggers:** High loss rates, API failures
-- **Recovery:** Automatic/manual reset mechanisms
-- **Benefits:** System stability, controlled degradation
+# Concrete Implementations
+class ZerodhaBroker(BrokerInterface): ...
+class AngelBroker(BrokerInterface): ...
+class FinvasiaBroker(BrokerInterface): ...
+```
 
-#### Bulkhead Pattern
-- **Implementation:** Resource isolation
-- **Segregation:** By exchange, strategy, or asset class
-- **Benefits:** Failure isolation, resource management
+### Event-Driven Data Flow
 
-## Design Principles
+#### CQRS (Command Query Responsibility Segregation)
+```
+Commands (Write Side):        Queries (Read Side):
+┌─────────────────────┐      ┌─────────────────────┐
+│   Order Placement   │      │   Portfolio View    │
+│   Position Updates  │      │   Performance       │
+│   Strategy Config   │      │   Market Data       │
+└─────────────────────┘      └─────────────────────┘
+         │                            │
+         ▼                            ▼
+┌─────────────────────┐      ┌─────────────────────┐
+│   Command Store     │      │   Read Projections  │
+│   (DynamoDB)        │      │   (Optimized Views) │
+└─────────────────────┘      └─────────────────────┘
+```
 
-### Established Principles (PM System)
-1. **Modularity:** Each component has a single responsibility
-2. **Configurability:** Behavior controlled through configuration
-3. **Automation:** Manual tasks automated through scripts
-4. **Documentation:** Self-documenting through markdown files
+#### Event Sourcing for Audit Trail
+- **Event Store:** All trading actions stored as immutable events
+- **Event Replay:** Ability to reconstruct state from event history
+- **Compliance:** Full audit trail for regulatory requirements
+- **Debugging:** Complete visibility into system behavior
 
-### Recommended Principles (Application)
+### Serverless Architecture Patterns
 
-#### SOLID Principles
-- **Single Responsibility:** Each class/module has one job
-- **Open/Closed:** Open for extension, closed for modification
-- **Liskov Substitution:** Derived classes must be substitutable
-- **Interface Segregation:** Many specific interfaces over one general
-- **Dependency Inversion:** Depend on abstractions, not concretions
+#### Lambda Function Organization
+```
+src/api/
+├── orders/           # Order management functions
+├── strategies/       # Strategy CRUD operations
+├── portfolios/       # Portfolio tracking functions
+├── webhooks/         # Broker webhook handlers
+└── scheduled/        # EventBridge triggered functions
+```
 
-#### Trading-Specific Principles
-- **Fail-Safe Defaults:** Conservative behavior when uncertain
-- **Immutable Data:** Market data should not be modified
-- **Audit Trail:** All decisions must be traceable
-- **Real-Time First:** Low-latency requirements drive design
+#### Cold Start Mitigation
+- **Provisioned Concurrency:** For latency-critical functions
+- **Connection Pooling:** Database connection reuse
+- **Warm-up Patterns:** Keep critical functions warm
+- **Lightweight Dependencies:** Minimize function package size
+
+## Data Management Patterns
+
+### Single Table Design (DynamoDB)
+```
+PK                   SK                    Attributes
+USER#123            PROFILE               {name, email, settings}
+USER#123            BASKET#456            {basket_config}
+USER#123            STRATEGY#789          {strategy_params}
+BASKET#456          STRATEGY#789          {strategy_in_basket}
+ORDER#999           EXECUTION#001         {execution_details}
+```
+
+### Time-Series Data Pattern
+- **Hot Data:** Recent data in DynamoDB for fast access
+- **Warm Data:** Older data in S3 Parquet for analysis
+- **Cold Data:** Archived data with lifecycle policies
+- **Query Optimization:** Partitioning by date and user
+
+### Cache-Aside Pattern
+```
+Application → Cache (ElastiCache) → Database (DynamoDB)
+     ↓             ↑                      ↑
+   Cache Miss    Cache Hit              Primary Data
+```
+
+## Integration Patterns
+
+### API Gateway Pattern
+```
+Client → API Gateway → Lambda Authorizer → Lambda Function → DynamoDB
+   ↓                      ↓                     ↓              ↓
+Request              JWT Validation       Business Logic   Data Storage
+```
+
+### Circuit Breaker Pattern
+```python
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_count = 0
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+```
+
+### Retry with Exponential Backoff
+- **Implementation:** Automatic retry for transient failures
+- **Broker APIs:** Retry failed API calls to brokers
+- **Dead Letter Queues:** Handle permanently failed messages
+- **Jitter:** Random delays to prevent thundering herd
 
 ## Error Handling Patterns
 
-### Current Pattern (PM System)
-- **Graceful Degradation:** Continue with reduced functionality
-- **User-Friendly Messages:** Clear error communication
-- **Logging:** Detailed logs for debugging
+### Defensive Programming
+```python
+class OrderService:
+    def place_order(self, order: Order) -> Result[OrderConfirmation, OrderError]:
+        # Validation
+        if not self._validate_order(order):
+            return Err(OrderError.INVALID_ORDER)
+        
+        # Risk Checks
+        if not self._check_risk_limits(order):
+            return Err(OrderError.RISK_LIMIT_EXCEEDED)
+        
+        # Broker Integration
+        try:
+            result = self.broker.place_order(order)
+            return Ok(result)
+        except BrokerError as e:
+            return Err(OrderError.BROKER_FAILURE)
+```
 
-### Recommended Patterns (Application)
+### Graceful Degradation
+- **Market Data Failures:** Use cached data with staleness indicators
+- **Broker API Failures:** Queue orders for retry or manual processing
+- **Database Issues:** Fallback to read replicas or cached responses
+- **Service Degradation:** Disable non-critical features during issues
 
-#### Result/Option Pattern
-- **Implementation:** Explicit error handling without exceptions
-- **Benefits:** Forced error consideration, clearer code flow
-- **Examples:** `Result<T, Error>` in Rust, `Optional<T>` patterns
+## Security Patterns
 
-#### Retry with Backoff
-- **Use Cases:** Network failures, temporary API issues
-- **Implementation:** Exponential backoff, jitter, circuit breaking
-- **Benefits:** Resilience to temporary failures
+### Zero Trust Architecture
+```
+Every Request → Authentication → Authorization → Business Logic → Audit Log
+     ↓              ↓              ↓               ↓              ↓
+   API Key      JWT Validation   Role Check    Execute Action  Log Event
+```
+
+### Secrets Management Pattern
+- **Parameter Store:** API keys and configuration
+- **Key Rotation:** Automatic credential rotation
+- **Encryption:** All secrets encrypted at rest
+- **Access Control:** Principle of least privilege
+
+## Monitoring & Observability Patterns
+
+### Three Pillars of Observability
+1. **Metrics:** Quantitative measurements (latency, throughput, errors)
+2. **Logs:** Discrete event records with context
+3. **Traces:** Request flow through distributed system
+
+### Structured Logging Pattern
+```python
+import structlog
+
+logger = structlog.get_logger()
+
+logger.info(
+    "order_placed",
+    user_id=user_id,
+    order_id=order.id,
+    symbol=order.symbol,
+    quantity=order.quantity,
+    broker="zerodha",
+    latency_ms=response_time
+)
+```
+
+### Health Check Pattern
+```
+/health/ready    → Service can accept requests
+/health/live     → Service is running (for restart decisions)
+/health/deep     → Full dependency check (external APIs, database)
+```
 
 ## Testing Patterns
 
-### Current Approach (PM System)
-- **Validation Scripts:** Automated checking of system state
-- **Integration Focus:** End-to-end workflow testing
-
-### Recommended Patterns (Application)
-
-#### Test Pyramid
+### Test Pyramid Implementation
 ```
-    ┌─────────────┐
-    │    E2E      │  ← Few, high-value integration tests
-    ├─────────────┤
-    │ Integration │  ← Moderate number of service tests  
-    ├─────────────┤
-    │    Unit     │  ← Many fast, focused unit tests
-    └─────────────┘
+E2E Tests (Few):
+├── Full user journey tests
+├── Critical path validation
+└── Cross-service integration
+
+Integration Tests (Some):
+├── API contract testing
+├── Database integration
+├── Broker API integration
+└── Event flow validation
+
+Unit Tests (Many):
+├── Business logic validation
+├── Data transformation
+├── Edge case handling
+└── Error scenarios
 ```
 
-#### Test Doubles Pattern
-- **Mocks:** For external API interactions
-- **Stubs:** For predictable data sources  
-- **Fakes:** For simplified implementations
-- **Benefits:** Fast tests, controlled conditions
+### Test Doubles Strategy
+- **Mocks:** External service responses (broker APIs)
+- **Stubs:** Predictable data sources (market data)
+- **Fakes:** In-memory implementations (database)
+- **Spies:** Behavior verification (event publishing)
 
-## Configuration Patterns
+## Development Workflow Patterns
 
-### Current Pattern (PM System)
-- **File-Based:** Markdown files for configuration
-- **Hierarchical:** Organized by domain (commands, rules, etc.)
+### GitFlow with Epic Branches
+```
+main ← epic/options-strategy-lifecycle ← task/github-issue-2
+ ↑              ↑                              ↑
+Prod        Feature Branch                Task Branch
+```
 
-### Recommended Patterns (Application)
-- **Environment-Based:** Different configs per environment
-- **Layered Configuration:** Defaults < Environment < Runtime
-- **Validation:** Schema validation for all configuration
-- **Hot Reloading:** Runtime configuration updates where safe
+### Continuous Integration Pattern
+1. **Code Push:** Developer pushes to task branch
+2. **Automated Tests:** Unit and integration tests run
+3. **Code Quality:** Linting, type checking, security scans
+4. **Preview Deploy:** Temporary environment for testing
+5. **Review:** Code review and approval process
+6. **Merge:** Integrate into epic branch
+
+### Infrastructure as Code Pattern
+- **CDK Stacks:** Environment-specific stack definitions
+- **Drift Detection:** Regular infrastructure drift checks
+- **Rollback Strategy:** Blue/green deployments for safety
+- **Configuration Management:** Environment variables through Parameter Store
