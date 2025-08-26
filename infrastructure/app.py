@@ -2,8 +2,11 @@
 Main CDK Stack for Options Strategy Lifecycle Platform
 
 This module defines the core AWS infrastructure stack for the Options Strategy
-Lifecycle Platform, including VPC, security groups, IAM roles, and foundational
+Lifecycle Platform, including IAM roles, CloudWatch resources, and foundational
 services required for the trading platform.
+
+This stack now uses modular networking and security stacks for better
+separation of concerns and maintainability.
 
 The stack is designed for deployment in ap-south-1 (Asia Pacific - Mumbai) region
 to comply with Indian market data residency requirements.
@@ -26,6 +29,8 @@ from aws_cdk import (
     aws_cloudwatch as cloudwatch,
 )
 from constructs import Construct
+from .stacks.networking_stack import NetworkingStack
+from .stacks.security_stack import SecurityStack
 
 
 class OptionsStrategyPlatformStack(Stack):
@@ -33,8 +38,8 @@ class OptionsStrategyPlatformStack(Stack):
     Main CDK Stack for Options Strategy Lifecycle Platform
     
     This stack creates the foundational infrastructure including:
-    - VPC with public and private subnets across multiple AZs
-    - Security groups for different service layers
+    - Networking infrastructure (delegated to NetworkingStack)
+    - Security groups and policies (delegated to SecurityStack)
     - IAM roles and policies following principle of least privilege
     - CloudWatch log groups and basic monitoring
     - Parameter Store entries for configuration management
@@ -46,6 +51,8 @@ class OptionsStrategyPlatformStack(Stack):
         scope: Construct,
         construct_id: str,
         env_name: str = "dev",
+        vpc_cidr: str = "10.0.0.0/16",
+        max_azs: int = 2,
         **kwargs
     ) -> None:
         """
@@ -55,20 +62,44 @@ class OptionsStrategyPlatformStack(Stack):
             scope: The scope in which to define this construct
             construct_id: The scoped construct ID
             env_name: Environment name (dev, staging, prod)
+            vpc_cidr: CIDR block for the VPC
+            max_azs: Maximum number of availability zones
             **kwargs: Additional stack properties
         """
         super().__init__(scope, construct_id, **kwargs)
         
         self.env_name = env_name
+        self.vpc_cidr = vpc_cidr
+        self.max_azs = max_azs
         
         # Apply standard tags to all resources in this stack
         self._apply_standard_tags()
         
-        # Create core networking infrastructure
-        self.vpc = self._create_vpc()
+        # Create networking infrastructure using modular stack
+        self.networking_stack = NetworkingStack(
+            scope,
+            f"{construct_id}-Networking",
+            env_name=env_name,
+            vpc_cidr=vpc_cidr,
+            max_azs=max_azs,
+            **kwargs
+        )
         
-        # Create security groups
-        self.security_groups = self._create_security_groups()
+        # Get VPC reference from networking stack
+        self.vpc = self.networking_stack.vpc
+        
+        # Create security infrastructure using modular stack
+        self.security_stack = SecurityStack(
+            scope,
+            f"{construct_id}-Security",
+            vpc=self.vpc,
+            env_name=env_name,
+            enable_strict_nacls=(env_name == "prod"),
+            **kwargs
+        )
+        
+        # Get security groups reference
+        self.security_groups = self.security_stack.security_groups
         
         # Create IAM roles and policies
         self.iam_roles = self._create_iam_roles()
@@ -99,154 +130,6 @@ class OptionsStrategyPlatformStack(Stack):
         
         for key, value in tags_config.items():
             Tags.of(self).add(key, value)
-
-    def _create_vpc(self) -> ec2.Vpc:
-        """
-        Create VPC with public and private subnets across multiple AZs
-        
-        Returns:
-            ec2.Vpc: The created VPC
-        """
-        vpc = ec2.Vpc(
-            self,
-            "OptionsStrategyVPC",
-            vpc_name=f"options-strategy-vpc-{self.env_name}",
-            ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
-            max_azs=3,  # Use 3 AZs for high availability
-            subnet_configuration=[
-                ec2.SubnetConfiguration(
-                    name="public",
-                    subnet_type=ec2.SubnetType.PUBLIC,
-                    cidr_mask=24,
-                ),
-                ec2.SubnetConfiguration(
-                    name="private-app",
-                    subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
-                    cidr_mask=24,
-                ),
-                ec2.SubnetConfiguration(
-                    name="private-db",
-                    subnet_type=ec2.SubnetType.PRIVATE_ISOLATED,
-                    cidr_mask=24,
-                ),
-            ],
-            enable_dns_hostnames=True,
-            enable_dns_support=True,
-        )
-        
-        # Add VPC Flow Logs for security monitoring
-        vpc_flow_log_role = iam.Role(
-            self,
-            "VPCFlowLogRole",
-            assumed_by=iam.ServicePrincipal("vpc-flow-logs.amazonaws.com"),
-            managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/VPCFlowLogsDeliveryRolePolicy"
-                )
-            ],
-        )
-        
-        vpc_log_group = logs.LogGroup(
-            self,
-            "VPCFlowLogGroup",
-            log_group_name=f"/aws/vpc/flowlogs/{self.env_name}",
-            retention=logs.RetentionDays.ONE_MONTH,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        
-        ec2.FlowLog(
-            self,
-            "VPCFlowLog",
-            resource_type=ec2.FlowLogResourceType.from_vpc(vpc),
-            destination=ec2.FlowLogDestination.to_cloud_watch_logs(
-                vpc_log_group, vpc_flow_log_role
-            ),
-        )
-        
-        return vpc
-
-    def _create_security_groups(self) -> Dict[str, ec2.SecurityGroup]:
-        """
-        Create security groups for different service layers
-        
-        Returns:
-            Dict[str, ec2.SecurityGroup]: Dictionary of created security groups
-        """
-        security_groups = {}
-        
-        # API Gateway / Load Balancer Security Group
-        security_groups["alb"] = ec2.SecurityGroup(
-            self,
-            "ALBSecurityGroup",
-            vpc=self.vpc,
-            description="Security group for Application Load Balancer",
-            security_group_name=f"options-strategy-alb-sg-{self.env_name}",
-        )
-        
-        security_groups["alb"].add_ingress_rule(
-            peer=ec2.Peer.any_ipv4(),
-            connection=ec2.Port.tcp(443),
-            description="HTTPS traffic from internet",
-        )
-        
-        security_groups["alb"].add_ingress_rule(
-            peer=ec2.Peer.any_ipv4(),
-            connection=ec2.Port.tcp(80),
-            description="HTTP traffic from internet (redirect to HTTPS)",
-        )
-        
-        # Application / Lambda Security Group
-        security_groups["app"] = ec2.SecurityGroup(
-            self,
-            "AppSecurityGroup",
-            vpc=self.vpc,
-            description="Security group for application services",
-            security_group_name=f"options-strategy-app-sg-{self.env_name}",
-        )
-        
-        security_groups["app"].add_ingress_rule(
-            peer=security_groups["alb"],
-            connection=ec2.Port.tcp(8080),
-            description="Traffic from ALB to application",
-        )
-        
-        # Database Security Group
-        security_groups["db"] = ec2.SecurityGroup(
-            self,
-            "DatabaseSecurityGroup",
-            vpc=self.vpc,
-            description="Security group for database services",
-            security_group_name=f"options-strategy-db-sg-{self.env_name}",
-        )
-        
-        security_groups["db"].add_ingress_rule(
-            peer=security_groups["app"],
-            connection=ec2.Port.tcp(5432),
-            description="PostgreSQL access from application",
-        )
-        
-        security_groups["db"].add_ingress_rule(
-            peer=security_groups["app"],
-            connection=ec2.Port.tcp(6379),
-            description="Redis access from application",
-        )
-        
-        # Cache Security Group
-        security_groups["cache"] = ec2.SecurityGroup(
-            self,
-            "CacheSecurityGroup",
-            vpc=self.vpc,
-            description="Security group for caching services",
-            security_group_name=f"options-strategy-cache-sg-{self.env_name}",
-        )
-        
-        security_groups["cache"].add_ingress_rule(
-            peer=security_groups["app"],
-            connection=ec2.Port.tcp(11211),
-            description="Memcached access from application",
-        )
-        
-        return security_groups
 
     def _create_iam_roles(self) -> Dict[str, iam.Role]:
         """
@@ -393,15 +276,9 @@ class OptionsStrategyPlatformStack(Stack):
         parameters = {
             "environment": self.env_name,
             "region": self.region,
-            "vpc-id": self.vpc.vpc_id,
-            "private-subnet-ids": ",".join(
-                [subnet.subnet_id for subnet in self.vpc.private_subnets]
-            ),
-            "public-subnet-ids": ",".join(
-                [subnet.subnet_id for subnet in self.vpc.public_subnets]
-            ),
-            "database-security-group-id": self.security_groups["db"].security_group_id,
-            "app-security-group-id": self.security_groups["app"].security_group_id,
+            "lambda-execution-role-arn": self.iam_roles["lambda_execution"].role_arn,
+            "ecs-execution-role-arn": self.iam_roles["ecs_execution"].role_arn,
+            "ecs-task-role-arn": self.iam_roles["ecs_task"].role_arn,
         }
         
         for key, value in parameters.items():
@@ -422,15 +299,15 @@ class OptionsStrategyPlatformStack(Stack):
             dashboard_name=f"OptionsStrategy-{self.env_name}",
         )
         
-        # Add VPC metrics widget
+        # Add platform metrics widget
         dashboard.add_widgets(
             cloudwatch.GraphWidget(
-                title="VPC Flow Logs",
+                title="Platform Overview",
                 left=[
                     cloudwatch.Metric(
-                        namespace="AWS/VPC",
-                        metric_name="PacketsDropped",
-                        dimensions_map={"VPC": self.vpc.vpc_id},
+                        namespace="AWS/Logs",
+                        metric_name="IncomingLogEvents",
+                        dimensions_map={"LogGroupName": f"/aws/application/options-strategy/{self.env_name}"},
                     )
                 ],
                 width=12,
@@ -443,48 +320,24 @@ class OptionsStrategyPlatformStack(Stack):
         
         CfnOutput(
             self,
-            "VPCId",
-            value=self.vpc.vpc_id,
-            description="ID of the created VPC",
-            export_name=f"OptionsStrategy-{self.env_name}-VPC-ID",
-        )
-        
-        CfnOutput(
-            self,
-            "PrivateSubnetIds",
-            value=",".join([subnet.subnet_id for subnet in self.vpc.private_subnets]),
-            description="IDs of private subnets",
-            export_name=f"OptionsStrategy-{self.env_name}-Private-Subnet-IDs",
-        )
-        
-        CfnOutput(
-            self,
-            "PublicSubnetIds",
-            value=",".join([subnet.subnet_id for subnet in self.vpc.public_subnets]),
-            description="IDs of public subnets",
-            export_name=f"OptionsStrategy-{self.env_name}-Public-Subnet-IDs",
-        )
-        
-        CfnOutput(
-            self,
-            "DatabaseSecurityGroupId",
-            value=self.security_groups["db"].security_group_id,
-            description="ID of database security group",
-            export_name=f"OptionsStrategy-{self.env_name}-DB-SG-ID",
-        )
-        
-        CfnOutput(
-            self,
-            "AppSecurityGroupId",
-            value=self.security_groups["app"].security_group_id,
-            description="ID of application security group",
-            export_name=f"OptionsStrategy-{self.env_name}-App-SG-ID",
-        )
-        
-        CfnOutput(
-            self,
             "LambdaExecutionRoleArn",
             value=self.iam_roles["lambda_execution"].role_arn,
             description="ARN of Lambda execution role",
             export_name=f"OptionsStrategy-{self.env_name}-Lambda-Role-ARN",
+        )
+        
+        CfnOutput(
+            self,
+            "ECSExecutionRoleArn",
+            value=self.iam_roles["ecs_execution"].role_arn,
+            description="ARN of ECS execution role",
+            export_name=f"OptionsStrategy-{self.env_name}-ECS-Execution-Role-ARN",
+        )
+        
+        CfnOutput(
+            self,
+            "ECSTaskRoleArn",
+            value=self.iam_roles["ecs_task"].role_arn,
+            description="ARN of ECS task role",
+            export_name=f"OptionsStrategy-{self.env_name}-ECS-Task-Role-ARN",
         )

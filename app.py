@@ -103,6 +103,8 @@ def main():
         app,
         stack_name,
         env_name=env_name,
+        vpc_cidr=env_config["vpc_cidr"],
+        max_azs=env_config["max_azs"],
         env=aws_env,
         description=f"Options Strategy Lifecycle Platform - {env_name.title()} Environment",
         stack_name=stack_name,
