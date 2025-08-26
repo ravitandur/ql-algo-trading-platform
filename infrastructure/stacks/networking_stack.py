@@ -88,9 +88,6 @@ class NetworkingStack(Stack):
             enable_dns_support=enable_dns_support,
         )
         
-        # Store reference to the VPC for easy access
-        self.vpc = self.vpc_construct.vpc
-        
         # Create VPC Flow Logs for security monitoring
         self._create_vpc_flow_logs()
         
@@ -260,3 +257,8 @@ class NetworkingStack(Stack):
     def availability_zones(self) -> List[str]:
         """Get availability zones used by the VPC"""
         return self.vpc.availability_zones
+    
+    @property
+    def vpc(self) -> ec2.Vpc:
+        """Get VPC from the construct"""
+        return self.vpc_construct.vpc
