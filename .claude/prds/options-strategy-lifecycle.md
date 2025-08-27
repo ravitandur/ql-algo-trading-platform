@@ -8,6 +8,7 @@ We are building an **AWS-native Algo Trading Platform** where users can:
 - Execute trades automatically via **EventBridge triggers** and **broker APIs**.
 
 The platform will initially support **Zerodha** as the broker and data source, with plans to extend to Angel, Finvasia, and Zebu.
+Design the application 
 
 ---
 
